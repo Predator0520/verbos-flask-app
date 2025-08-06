@@ -66,7 +66,11 @@ def agregar_verbo():
 
     return jsonify({"estado": "ok", "mensaje": "Verbo agregado correctamente."})
 
-import os
+# ✅ NUEVA RUTA PARA VER TODOS LOS VERBOS
+@app.route('/verbos')
+def lista_verbos():
+    verbos = cargar_verbos()
+    return jsonify(verbos)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
