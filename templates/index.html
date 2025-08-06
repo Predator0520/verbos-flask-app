@@ -1,21 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+  <meta charset="UTF-8">
   <title>Práctica de Verbos</title>
   <script src="/static/script.js" defer></script>
 </head>
 <body>
   <h1>Práctica de Verbos</h1>
 
-  <div id="pregunta"></div>
+  <div id="pregunta">Cargando pregunta...</div>
   <input type="text" id="respuesta" placeholder="Tu respuesta aquí">
   <button onclick="verificar()">Verificar</button>
   <div id="resultado"></div>
 
   <hr>
   <h2>Agregar nuevo verbo</h2>
+  <label>Presente:</label>
   <input type="text" id="nuevoPresente" placeholder="Presente">
+  <label>Pasado:</label>
   <input type="text" id="nuevoPasado" placeholder="Pasado">
+  <label>Traducción:</label>
   <input type="text" id="nuevaTraduccion" placeholder="Traducción">
   <button onclick="agregarVerbo()">Agregar Verbo</button>
   <div id="mensajeAgregar"></div>
@@ -24,7 +28,7 @@
   <h2>📋 Lista de Verbos</h2>
   <button onclick="mostrarVerbos()">Ver todos los verbos</button>
   <ul id="listaVerbos"></ul>
-
 </body>
 </html>
+
 
