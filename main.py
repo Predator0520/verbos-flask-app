@@ -8,13 +8,13 @@ VERBOS_FILE = 'verbos.json'
 
 def cargar_verbos():
     if os.path.exists(VERBOS_FILE):
-        with open(VERBOS_FILE, 'r', encoding='utf-8') as f:
+        with open(VERBOS_FILE, 'r') as f:
             return json.load(f)
     return []
 
 def guardar_verbos(verbos):
-    with open(VERBOS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(verbos, f, indent=2, ensure_ascii=False)
+    with open(VERBOS_FILE, 'w') as f:
+        json.dump(verbos, f, indent=2)
 
 @app.route('/')
 def index():
@@ -49,12 +49,12 @@ def agregar_verbo():
     traduccion = data.get('traduccion', '').strip().lower()
 
     if not presente or not pasado or not traduccion:
-        return jsonify({"estado": "error", "mensaje": "⚠️ Faltan campos."})
+        return jsonify({"estado": "error", "mensaje": "Faltan campos."})
 
     verbos = cargar_verbos()
     for verbo in verbos:
         if verbo['presente'] == presente:
-            return jsonify({"estado": "error", "mensaje": "⚠️ El verbo ya existe."})
+            return jsonify({"estado": "error", "mensaje": "El verbo ya existe."})
 
     verbos.append({
         "presente": presente,
@@ -68,5 +68,32 @@ def agregar_verbo():
 def lista_verbos():
     return jsonify(cargar_verbos())
 
+@app.route('/eliminar_verbo', methods=['POST'])
+def eliminar_verbo():
+    data = request.get_json()
+    presente = data.get('presente', '')
+    verbos = cargar_verbos()
+    nuevos = [v for v in verbos if v['presente'] != presente]
+    guardar_verbos(nuevos)
+    return jsonify({"estado": "ok", "mensaje": "🗑️ Verbo eliminado"})
+
+@app.route('/editar_verbo', methods=['POST'])
+def editar_verbo():
+    data = request.get_json()
+    original = data.get('original')
+    nuevo = data.get('nuevo')
+
+    verbos = cargar_verbos()
+    for v in verbos:
+        if v['presente'] == original:
+            v['presente'] = nuevo['presente']
+            v['pasado'] = nuevo['pasado']
+            v['traduccion'] = nuevo['traduccion']
+            break
+
+    guardar_verbos(verbos)
+    return jsonify({"estado": "ok", "mensaje": "✏️ Verbo editado"})
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
