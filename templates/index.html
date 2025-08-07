@@ -7,17 +7,24 @@
 </head>
 <body>
   <div class="container">
+
     <h1>🌟 Práctica de Verbos</h1>
 
-    <!-- 📘 Flashcard de pregunta -->
-    <div class="card">
+    <div style="text-align:center;">
+      <button onclick="mostrarPractica()">🧠 Práctica</button>
+      <button onclick="mostrarVerbosToggle()">📋 Ver todos los verbos</button>
+    </div>
+
+    <!-- Sección Práctica -->
+    <div class="card" id="seccionPractica">
+      <button class="close-btn" onclick="document.getElementById('seccionPractica').classList.add('hidden')">×</button>
       <label class="flashcard" id="pregunta">Pregunta aparecerá aquí</label>
       <input type="text" id="respuesta" placeholder="Tu respuesta aquí">
       <button onclick="verificar()">✅ Verificar</button>
       <p id="resultado"></p>
     </div>
 
-    <!-- ➕ Agregar nuevo verbo -->
+    <!-- Agregar nuevo verbo -->
     <div class="card">
       <h2>➕ Agregar nuevo verbo</h2>
       <input type="text" id="nuevoPresente" placeholder="Presente">
@@ -27,16 +34,14 @@
       <p id="mensaje"></p>
     </div>
 
-    <!-- 📝 Lista de Verbos -->
-    <div class="card">
+    <!-- Lista de Verbos -->
+    <div class="card hidden" id="seccionVerbos">
       <h2>📝 Lista de Verbos</h2>
-      <button onclick="mostrarVerbos()">📋 Ver todos los verbos</button>
       <ul id="listaVerbos"></ul>
     </div>
 
-    <!-- 🌙 / ☀️ Modo Oscuro -->
     <label class="switch">
-      🌙 <input type="checkbox" id="modoOscuro" onchange="toggleModo()"> ☀️
+      🌙 <input type="checkbox" onchange="toggleModo()"> ☀️
     </label>
   </div>
 
