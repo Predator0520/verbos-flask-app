@@ -8,13 +8,13 @@ VERBOS_FILE = 'verbos.json'
 
 def cargar_verbos():
     if os.path.exists(VERBOS_FILE):
-        with open(VERBOS_FILE, 'r') as f:
+        with open(VERBOS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return []
 
 def guardar_verbos(verbos):
-    with open(VERBOS_FILE, 'w') as f:
-        json.dump(verbos, f, indent=2)
+    with open(VERBOS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(verbos, f, indent=2, ensure_ascii=False)
 
 @app.route('/')
 def index():
@@ -49,13 +49,12 @@ def agregar_verbo():
     traduccion = data.get('traduccion', '').strip().lower()
 
     if not presente or not pasado or not traduccion:
-        return jsonify({"estado": "error", "mensaje": "Faltan campos."})
+        return jsonify({"estado": "error", "mensaje": "⚠️ Faltan campos."})
 
     verbos = cargar_verbos()
-
     for verbo in verbos:
         if verbo['presente'] == presente:
-            return jsonify({"estado": "error", "mensaje": "El verbo ya existe."})
+            return jsonify({"estado": "error", "mensaje": "⚠️ El verbo ya existe."})
 
     verbos.append({
         "presente": presente,
@@ -63,16 +62,11 @@ def agregar_verbo():
         "traduccion": traduccion
     })
     guardar_verbos(verbos)
+    return jsonify({"estado": "ok", "mensaje": "✅ Verbo agregado correctamente."})
 
-    return jsonify({"estado": "ok", "mensaje": "Verbo agregado correctamente."})
-
-# ✅ NUEVA RUTA PARA VER TODOS LOS VERBOS
 @app.route('/verbos')
 def lista_verbos():
-    verbos = cargar_verbos()
-    return jsonify(verbos)
+    return jsonify(cargar_verbos())
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
-
+    app.run(debug=True)
