@@ -1,39 +1,52 @@
 body {
   font-family: 'Segoe UI', sans-serif;
   margin: 0;
-  padding: 20px;
-  background: #f5f7fa;
+  padding: 0;
+  background: linear-gradient(to right, #e3f2fd, #ffffff);
   color: #333;
   transition: background 0.3s, color 0.3s;
 }
 
 .container {
-  max-width: 800px;
+  max-width: 850px;
   margin: auto;
+  padding: 30px;
 }
 
 .card {
   background: #fff;
-  padding: 15px 25px;
-  margin-bottom: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  padding: 20px 25px;
+  margin: 20px 0;
+  border-radius: 15px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+}
+
+.flashcard {
+  font-size: 1.3em;
+  font-weight: bold;
+  background: #e3f2fd;
+  padding: 12px;
+  border-radius: 10px;
+  margin-bottom: 10px;
 }
 
 input[type="text"] {
-  padding: 8px;
+  padding: 10px;
   margin: 5px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #ccc;
+  width: 240px;
 }
 
 button {
   background: #4CAF50;
   color: white;
   border: none;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 10px 16px;
+  border-radius: 8px;
   cursor: pointer;
+  font-weight: bold;
   transition: background 0.2s;
 }
 
@@ -41,21 +54,10 @@ button:hover {
   background: #388E3C;
 }
 
-.flashcard {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 1.2em;
-  font-weight: bold;
-  background: #e3f2fd;
-  padding: 10px;
-  border-radius: 10px;
-}
-
-/* Switch de modo oscuro */
 .switch {
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   margin-top: 20px;
   font-weight: bold;
 }
@@ -75,4 +77,21 @@ button:hover {
   background: #444;
   color: white;
   border: 1px solid #777;
+}
+
+/* Mostrar/Ocultar secciones */
+.hidden {
+  display: none;
+}
+
+.close-btn {
+  float: right;
+  background: #d32f2f;
+  border: none;
+  color: white;
+  font-weight: bold;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
 }
