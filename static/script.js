@@ -13,12 +13,14 @@ function cargarPregunta() {
 
 function verificar() {
   const respuestaUsuario = document.getElementById("respuesta").value.toLowerCase().trim();
+  const resultado = document.getElementById("resultado");
+
   if (respuestaUsuario === respuestaCorrecta) {
-    document.getElementById("resultado").textContent = "✅ ¡Correcto!";
+    resultado.textContent = "✅ ¡Correcto!";
   } else {
-    document.getElementById("resultado").textContent =
-      "❌ Incorrecto. La respuesta era: " + respuestaCorrecta;
+    resultado.textContent = `❌ Incorrecto. La respuesta era: ${respuestaCorrecta}`;
   }
+
   setTimeout(cargarPregunta, 2000);
 }
 
@@ -28,7 +30,7 @@ function agregarVerbo() {
   const traduccion = document.getElementById("nuevaTraduccion").value.trim();
 
   if (!presente || !pasado || !traduccion) {
-    document.getElementById("mensaje").textContent = "⚠️ Todos los campos son obligatorios.";
+    document.getElementById("mensajeAgregar").textContent = "⚠️ Todos los campos son obligatorios.";
     return;
   }
 
@@ -39,12 +41,11 @@ function agregarVerbo() {
   })
     .then(response => response.json())
     .then(data => {
-      document.getElementById("mensaje").textContent = data.mensaje;
+      document.getElementById("mensajeAgregar").textContent = data.mensaje;
       if (data.estado === "ok") {
         document.getElementById("nuevoPresente").value = "";
         document.getElementById("nuevoPasado").value = "";
         document.getElementById("nuevaTraduccion").value = "";
-        cargarPregunta();
         mostrarVerbos();
       }
     });
@@ -68,29 +69,25 @@ function mostrarVerbos() {
     });
 }
 
-// Alternar entre práctica y lista
-function mostrarPractica() {
-  document.getElementById("seccionPractica").classList.remove("hidden");
-  document.getElementById("seccionVerbos").classList.add("hidden");
-  cargarPregunta();
-}
-
-function mostrarVerbosToggle() {
-  const seccion = document.getElementById("seccionVerbos");
-  const practica = document.getElementById("seccionPractica");
-  if (seccion.classList.contains("hidden")) {
-    seccion.classList.remove("hidden");
-    practica.classList.add("hidden");
+// Mostrar sección correspondiente
+function mostrarSeccion(seccion) {
+  cerrarSecciones();
+  if (seccion === 'practica') {
+    document.getElementById("seccionPractica").style.display = "block";
+    cargarPregunta();
+  } else if (seccion === 'lista') {
+    document.getElementById("seccionLista").style.display = "block";
     mostrarVerbos();
-  } else {
-    seccion.classList.add("hidden");
+  } else if (seccion === 'agregar') {
+    document.getElementById("seccionAgregar").style.display = "block";
   }
 }
 
+function cerrarSecciones() {
+  document.querySelectorAll(".seccion").forEach(sec => sec.style.display = "none");
+}
+
+// Modo oscuro / claro
 function toggleModo() {
   document.body.classList.toggle("dark");
 }
-
-window.onload = () => {
-  cargarPregunta();
-};
