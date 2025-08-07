@@ -1,8 +1,15 @@
 let respuestaCorrecta = "";
+let tipoVerbo = "todos";
+
+function practicar(tipo) {
+  tipoVerbo = tipo;
+  document.getElementById("practicaCard").classList.remove("hidden");
+  cargarPregunta();
+}
 
 function cargarPregunta() {
-  fetch("/pregunta")
-    .then(response => response.json())
+  fetch("/pregunta?tipo=" + tipoVerbo)
+    .then(res => res.json())
     .then(data => {
       document.getElementById("pregunta").textContent = data.pregunta;
       respuestaCorrecta = data.respuesta.toLowerCase();
@@ -12,15 +19,10 @@ function cargarPregunta() {
 }
 
 function verificar() {
-  const respuestaUsuario = document.getElementById("respuesta").value.toLowerCase().trim();
-  const resultado = document.getElementById("resultado");
-
-  if (respuestaUsuario === respuestaCorrecta) {
-    resultado.textContent = "✅ ¡Correcto!";
-  } else {
-    resultado.textContent = `❌ Incorrecto. La respuesta era: ${respuestaCorrecta}`;
-  }
-
+  const r = document.getElementById("respuesta").value.toLowerCase().trim();
+  document.getElementById("resultado").textContent = r === respuestaCorrecta
+    ? "✅ ¡Correcto!"
+    : "❌ Incorrecto. La respuesta era: " + respuestaCorrecta;
   setTimeout(cargarPregunta, 2000);
 }
 
@@ -28,6 +30,7 @@ function agregarVerbo() {
   const presente = document.getElementById("nuevoPresente").value.trim();
   const pasado = document.getElementById("nuevoPasado").value.trim();
   const traduccion = document.getElementById("nuevaTraduccion").value.trim();
+  const categoria = document.getElementById("nuevaCategoria").value;
 
   if (!presente || !pasado || !traduccion) {
     document.getElementById("mensajeAgregar").textContent = "⚠️ Todos los campos son obligatorios.";
@@ -37,57 +40,56 @@ function agregarVerbo() {
   fetch("/agregar_verbo", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ presente, pasado, traduccion })
+    body: JSON.stringify({ presente, pasado, traduccion, categoria })
   })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
       document.getElementById("mensajeAgregar").textContent = data.mensaje;
-      if (data.estado === "ok") {
-        document.getElementById("nuevoPresente").value = "";
-        document.getElementById("nuevoPasado").value = "";
-        document.getElementById("nuevaTraduccion").value = "";
-        mostrarVerbos();
-      }
+      mostrarVerbos();
     });
 }
 
 function mostrarVerbos() {
   fetch("/verbos")
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
       const lista = document.getElementById("listaVerbos");
       lista.innerHTML = "";
-      if (data.length === 0) {
-        lista.innerHTML = "<li>No hay verbos guardados aún.</li>";
-        return;
-      }
-      data.forEach(verbo => {
+      data.forEach((verbo, index) => {
         const li = document.createElement("li");
-        li.textContent = `${verbo.presente} – ${verbo.pasado} – ${verbo.traduccion}`;
+        li.textContent = `${verbo.presente} – ${verbo.pasado} – ${verbo.traduccion} (${verbo.categoria})`;
         lista.appendChild(li);
       });
     });
 }
 
-// Mostrar sección correspondiente
-function mostrarSeccion(seccion) {
-  cerrarSecciones();
-  if (seccion === 'practica') {
-    document.getElementById("seccionPractica").style.display = "block";
-    cargarPregunta();
-  } else if (seccion === 'lista') {
-    document.getElementById("seccionLista").style.display = "block";
-    mostrarVerbos();
-  } else if (seccion === 'agregar') {
-    document.getElementById("seccionAgregar").style.display = "block";
-  }
+// Mostrar y ocultar secciones
+function mostrarPractica() {
+  ocultarTodo();
+  document.getElementById("seccionPractica").classList.remove("hidden");
+}
+function mostrarLista() {
+  ocultarTodo();
+  document.getElementById("seccionLista").classList.remove("hidden");
+}
+function toggleAgregar() {
+  ocultarTodo();
+  document.getElementById("seccionAgregar").classList.remove("hidden");
+}
+function cerrarPractica() {
+  document.getElementById("practicaCard").classList.add("hidden");
+}
+function cerrarLista() {
+  document.getElementById("seccionLista").classList.add("hidden");
+}
+function ocultarTodo() {
+  ["seccionAgregar", "seccionLista", "seccionPractica"].forEach(id => {
+    document.getElementById(id).classList.add("hidden");
+  });
 }
 
-function cerrarSecciones() {
-  document.querySelectorAll(".seccion").forEach(sec => sec.style.display = "none");
-}
-
-// Modo oscuro / claro
+// Modo claro / oscuro
 function toggleModo() {
   document.body.classList.toggle("dark");
 }
+
