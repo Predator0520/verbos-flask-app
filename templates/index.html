@@ -2,52 +2,60 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Práctica de Verbos</title>
+  <title>App de Verbos</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="modo-switch">
-    🌙 <input type="checkbox" id="modoOscuro" onchange="toggleModo()"> ☀️
-  </div>
-
   <div class="container">
+    <h1>🎓 App de Verbos en Inglés</h1>
 
-    <h1 class="titulo">🎓 App de Verbos en Inglés</h1>
-
-    <div class="menu-grid">
-      <div class="card-btn green" onclick="mostrarSeccion('practica')">🎯 Práctica</div>
-      <div class="card-btn orange" onclick="mostrarSeccion('lista')">📋 Ver Verbos</div>
-      <div class="card-btn purple" onclick="mostrarSeccion('agregar')">➕ Agregar Verbo</div>
+    <div class="botones-principales">
+      <button class="btn-practica" onclick="mostrarPractica()">🎯 Práctica</button>
+      <button class="btn-verbos" onclick="mostrarLista()">📰 Ver Verbos</button>
     </div>
 
-    <!-- 🧠 SECCIÓN PRÁCTICA -->
-    <div class="card seccion" id="seccionPractica" style="display:none;">
-      <label class="flashcard" id="pregunta">Pregunta aparecerá aquí</label>
-      <input type="text" id="respuesta" placeholder="Tu respuesta aquí">
-      <button onclick="verificar()">✅ Verificar</button>
-      <span class="cerrar" onclick="cerrarSecciones()">✖️</span>
-      <p id="resultado"></p>
+    <button class="btn-agregar" onclick="toggleAgregar()">➕ Agregar Verbo</button>
+
+    <!-- PRACTICA -->
+    <div id="seccionPractica" class="card hidden">
+      <button class="btn-sub" onclick="practicar('irregular')">Verbos Irregulares</button>
+      <button class="btn-sub" onclick="practicar('regular')">Verbos Regulares</button>
+      <button class="btn-sub" onclick="practicar('todos')">Todos los Verbos</button>
+
+      <div id="practicaCard" class="practica hidden">
+        <label id="pregunta" class="flashcard"></label>
+        <input type="text" id="respuesta" placeholder="Tu respuesta aquí">
+        <button onclick="verificar()">✅ Verificar</button>
+        <button onclick="cerrarPractica()" class="btn-cerrar">✖️</button>
+        <p id="resultado"></p>
+      </div>
     </div>
 
-    <!-- 📋 SECCIÓN VER VERBOS -->
-    <div class="card seccion" id="seccionLista" style="display:none;">
-      <h2>📋 Lista de Verbos</h2>
-      <button onclick="mostrarVerbos()">📂 Ver todos los verbos</button>
-      <ul id="listaVerbos"></ul>
-      <span class="cerrar" onclick="cerrarSecciones()">✖️</span>
-    </div>
-
-    <!-- ➕ SECCIÓN AGREGAR -->
-    <div class="card seccion" id="seccionAgregar" style="display:none;">
+    <!-- AGREGAR -->
+    <div id="seccionAgregar" class="card hidden">
       <h2>➕ Agregar nuevo verbo</h2>
       <input type="text" id="nuevoPresente" placeholder="Presente">
       <input type="text" id="nuevoPasado" placeholder="Pasado">
       <input type="text" id="nuevaTraduccion" placeholder="Traducción">
-      <button onclick="agregarVerbo()">➕ Agregar Verbo</button>
+      <select id="nuevaCategoria">
+        <option value="regular">Regular</option>
+        <option value="irregular">Irregular</option>
+      </select>
+      <button onclick="agregarVerbo()">➕ Agregar</button>
       <p id="mensajeAgregar"></p>
-      <span class="cerrar" onclick="cerrarSecciones()">✖️</span>
     </div>
 
+    <!-- LISTA -->
+    <div id="seccionLista" class="card hidden">
+      <h2>📝 Lista de Verbos</h2>
+      <button onclick="mostrarVerbos()">📂 Ver todos los verbos</button>
+      <ul id="listaVerbos"></ul>
+      <button onclick="cerrarLista()" class="btn-cerrar">✖️</button>
+    </div>
+  </div>
+
+  <div class="modo">
+    🌙 <input type="checkbox" id="modoOscuro" onchange="toggleModo()"> ☀️
   </div>
 
   <script src="/static/script.js"></script>
