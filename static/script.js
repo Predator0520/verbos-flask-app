@@ -28,7 +28,7 @@ function agregarVerbo() {
   const traduccion = document.getElementById("nuevaTraduccion").value.trim();
 
   if (!presente || !pasado || !traduccion) {
-    document.getElementById("mensajeAgregar").textContent = "⚠️ Todos los campos son obligatorios.";
+    document.getElementById("mensaje").textContent = "⚠️ Todos los campos son obligatorios.";
     return;
   }
 
@@ -39,13 +39,13 @@ function agregarVerbo() {
   })
     .then(response => response.json())
     .then(data => {
-      document.getElementById("mensajeAgregar").textContent = data.mensaje;
+      document.getElementById("mensaje").textContent = data.mensaje;
       if (data.estado === "ok") {
         document.getElementById("nuevoPresente").value = "";
         document.getElementById("nuevoPasado").value = "";
         document.getElementById("nuevaTraduccion").value = "";
         cargarPregunta();
-        mostrarVerbos(); // actualiza la lista
+        mostrarVerbos();
       }
     });
 }
@@ -68,12 +68,10 @@ function mostrarVerbos() {
     });
 }
 
-// 🌙 Cambiar modo oscuro / claro
 function toggleModo() {
   document.body.classList.toggle("dark");
 }
 
-// ⏱ Cargar primera pregunta al iniciar
 window.onload = () => {
   cargarPregunta();
 };
