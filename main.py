@@ -8,13 +8,13 @@ VERBOS_FILE = 'verbos.json'
 
 def cargar_verbos():
     if os.path.exists(VERBOS_FILE):
-        with open(VERBOS_FILE, 'r') as f:
+        with open(VERBOS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return []
 
 def guardar_verbos(verbos):
-    with open(VERBOS_FILE, 'w') as f:
-        json.dump(verbos, f, indent=2)
+    with open(VERBOS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(verbos, f, indent=2, ensure_ascii=False)
 
 @app.route('/')
 def index():
@@ -25,6 +25,13 @@ def pregunta():
     verbos = cargar_verbos()
     if not verbos:
         return jsonify({"pregunta": "No hay verbos cargados.", "respuesta": ""})
+
+    tipo_verbos = request.args.get("tipo", "todos")
+    if tipo_verbos != "todos":
+        verbos = [v for v in verbos if v['categoria'] == tipo_verbos]
+
+    if not verbos:
+        return jsonify({"pregunta": "No hay verbos de ese tipo.", "respuesta": ""})
 
     verbo = random.choice(verbos)
     tipo = random.choice(['pasado', 'presente', 'traduccion'])
@@ -41,12 +48,17 @@ def pregunta():
 
     return jsonify({"pregunta": pregunta, "respuesta": respuesta})
 
+@app.route('/verbos')
+def lista_verbos():
+    return jsonify(cargar_verbos())
+
 @app.route('/agregar_verbo', methods=['POST'])
 def agregar_verbo():
     data = request.get_json()
     presente = data.get('presente', '').strip().lower()
     pasado = data.get('pasado', '').strip().lower()
     traduccion = data.get('traduccion', '').strip().lower()
+    categoria = data.get('categoria', 'irregular')
 
     if not presente or not pasado or not traduccion:
         return jsonify({"estado": "error", "mensaje": "Faltan campos."})
@@ -59,41 +71,33 @@ def agregar_verbo():
     verbos.append({
         "presente": presente,
         "pasado": pasado,
-        "traduccion": traduccion
+        "traduccion": traduccion,
+        "categoria": categoria
     })
     guardar_verbos(verbos)
-    return jsonify({"estado": "ok", "mensaje": "✅ Verbo agregado correctamente."})
-
-@app.route('/verbos')
-def lista_verbos():
-    return jsonify(cargar_verbos())
-
-@app.route('/eliminar_verbo', methods=['POST'])
-def eliminar_verbo():
-    data = request.get_json()
-    presente = data.get('presente', '')
-    verbos = cargar_verbos()
-    nuevos = [v for v in verbos if v['presente'] != presente]
-    guardar_verbos(nuevos)
-    return jsonify({"estado": "ok", "mensaje": "🗑️ Verbo eliminado"})
+    return jsonify({"estado": "ok", "mensaje": "Verbo agregado correctamente."})
 
 @app.route('/editar_verbo', methods=['POST'])
 def editar_verbo():
     data = request.get_json()
-    original = data.get('original')
-    nuevo = data.get('nuevo')
-
+    idx = data['index']
     verbos = cargar_verbos()
-    for v in verbos:
-        if v['presente'] == original:
-            v['presente'] = nuevo['presente']
-            v['pasado'] = nuevo['pasado']
-            v['traduccion'] = nuevo['traduccion']
-            break
+    if 0 <= idx < len(verbos):
+        verbos[idx] = data['verbo']
+        guardar_verbos(verbos)
+        return jsonify({"estado": "ok"})
+    return jsonify({"estado": "error"})
 
-    guardar_verbos(verbos)
-    return jsonify({"estado": "ok", "mensaje": "✏️ Verbo editado"})
+@app.route('/eliminar_verbo', methods=['POST'])
+def eliminar_verbo():
+    data = request.get_json()
+    idx = data['index']
+    verbos = cargar_verbos()
+    if 0 <= idx < len(verbos):
+        del verbos[idx]
+        guardar_verbos(verbos)
+        return jsonify({"estado": "ok"})
+    return jsonify({"estado": "error"})
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(debug=True)
