@@ -1,119 +1,121 @@
+/* style.css - Estilos generales para la app de verbos */
+
 body {
-  font-family: 'Segoe UI', sans-serif;
-  background: #f6f7fb;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f7f9fc;
+  color: #222;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+h2 {
+  margin-bottom: 10px;
+}
+
+button {
+  padding: 10px 20px;
+  margin: 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.card {
+  background-color: white;
+  margin: 20px auto;
   padding: 20px;
-  transition: all 0.3s ease;
+  border-radius: 12px;
+  max-width: 700px;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+  position: relative;
 }
 
-.container {
-  max-width: 900px;
-  margin: auto;
-  text-align: center;
+.card h2 {
+  margin-top: 0;
 }
 
-h1 {
-  font-size: 2em;
-  margin-bottom: 20px;
+/* Botones por sección */
+#btnPractica { background-color: #4CAF50; color: white; }
+#btnVer { background-color: #ff9800; color: white; }
+#btnAgregar { background-color: #9c27b0; color: white; }
+#btnPractica:hover { background-color: #43a047; }
+#btnVer:hover { background-color: #fb8c00; }
+#btnAgregar:hover { background-color: #8e24aa; }
+
+/* Botones internos */
+.btn-verde { background-color: #4CAF50; color: white; }
+.btn-verde:hover { background-color: #43a047; }
+.btn-finalizar { background-color: crimson; color: white; }
+
+/* Lista de verbos */
+ul { list-style: none; padding: 0; }
+li { padding: 6px 0; }
+
+/* Switch de modo oscuro */
+.modo-oscuro-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  z-index: 100;
 }
 
+/* Estilo para el input y resultado */
+input[type="text"] {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  margin-right: 10px;
+}
+
+#resultado {
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+/* Ocultar elementos */
 .hidden {
   display: none;
 }
 
-.card {
-  background: white;
-  padding: 20px;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  margin-top: 20px;
-  text-align: left;
-  position: relative;
-}
-
-input[type="text"], select {
-  padding: 10px;
-  margin: 5px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  width: 180px;
-}
-
-button {
-  padding: 10px 16px;
-  margin: 5px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: all 0.2s ease;
-}
-
-.btn-practica {
-  background: #4CAF50;
-  color: white;
-}
-
-.btn-verbos {
-  background: #FF9800;
-  color: white;
-}
-
-.btn-agregar {
-  background: #9C27B0;
-  color: white;
-  width: 50%;
-}
-
-.btn-sub {
-  background: #00BCD4;
-  color: white;
-}
-
+/* Botón cerrar */
 .btn-cerrar {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  background: transparent;
-  font-size: 1.4em;
-  border: none;
-  color: #888;
-}
-
-.flashcard {
-  background: #e3f2fd;
-  padding: 10px;
-  border-radius: 10px;
-  font-size: 1.2em;
+  right: 15px;
+  top: 15px;
+  font-size: 20px;
   font-weight: bold;
-  margin-bottom: 10px;
-  display: inline-block;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+}
+.btn-cerrar:hover {
+  color: black;
 }
 
-.modo {
-  position: fixed;
-  top: 10px;
-  right: 20px;
+/* Modo oscuro */
+body.dark {
+  background-color: #181818;
+  color: #eee;
 }
-
-/* Dark mode */
-.dark {
-  background: #1e1e1e;
-  color: #f1f1f1;
+body.dark .card {
+  background-color: #333;
+  color: #eee;
 }
-
-.dark .card {
-  background: #333;
-  color: #fff;
-}
-
-.dark input,
-.dark select,
-.dark button {
-  background: #555;
+body.dark input[type="text"] {
+  background-color: #222;
   color: white;
-  border: 1px solid #888;
+  border-color: #444;
 }
-
-.dark .flashcard {
-  background: #444;
+body.dark .btn-cerrar {
+  color: white;
+}
+body.dark #resultado {
+  color: white;
 }
