@@ -9,6 +9,7 @@
   <div class="container">
     <h1>🌟 Práctica de Verbos</h1>
 
+    <!-- 📘 Flashcard de pregunta -->
     <div class="card">
       <label class="flashcard" id="pregunta">Pregunta aparecerá aquí</label>
       <input type="text" id="respuesta" placeholder="Tu respuesta aquí">
@@ -16,6 +17,7 @@
       <p id="resultado"></p>
     </div>
 
+    <!-- ➕ Agregar nuevo verbo -->
     <div class="card">
       <h2>➕ Agregar nuevo verbo</h2>
       <input type="text" id="nuevoPresente" placeholder="Presente">
@@ -25,12 +27,14 @@
       <p id="mensaje"></p>
     </div>
 
+    <!-- 📝 Lista de Verbos -->
     <div class="card">
       <h2>📝 Lista de Verbos</h2>
       <button onclick="mostrarVerbos()">📋 Ver todos los verbos</button>
       <ul id="listaVerbos"></ul>
     </div>
 
+    <!-- 🌙 / ☀️ Modo Oscuro -->
     <label class="switch">
       🌙 <input type="checkbox" id="modoOscuro" onchange="toggleModo()"> ☀️
     </label>
