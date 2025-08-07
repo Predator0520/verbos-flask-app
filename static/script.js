@@ -68,4 +68,12 @@ function mostrarVerbos() {
     });
 }
 
-window.onload = cargarPregunta;
+// 🌙 Cambiar modo oscuro / claro
+function toggleModo() {
+  document.body.classList.toggle("dark");
+}
+
+// ⏱ Cargar primera pregunta al iniciar
+window.onload = () => {
+  cargarPregunta();
+};
