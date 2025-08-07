@@ -3,32 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <title>Práctica de Verbos</title>
-  <script src="/static/script.js" defer></script>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <h1>Práctica de Verbos</h1>
+  <div class="container">
+    <h1>🌟 Práctica de Verbos</h1>
 
-  <div id="pregunta">Cargando pregunta...</div>
-  <input type="text" id="respuesta" placeholder="Tu respuesta aquí">
-  <button onclick="verificar()">Verificar</button>
-  <div id="resultado"></div>
+    <div class="card">
+      <label class="flashcard" id="pregunta">Pregunta aparecerá aquí</label>
+      <input type="text" id="respuesta" placeholder="Tu respuesta aquí">
+      <button onclick="verificar()">✅ Verificar</button>
+      <p id="resultado"></p>
+    </div>
 
-  <hr>
-  <h2>Agregar nuevo verbo</h2>
-  <label>Presente:</label>
-  <input type="text" id="nuevoPresente" placeholder="Presente">
-  <label>Pasado:</label>
-  <input type="text" id="nuevoPasado" placeholder="Pasado">
-  <label>Traducción:</label>
-  <input type="text" id="nuevaTraduccion" placeholder="Traducción">
-  <button onclick="agregarVerbo()">Agregar Verbo</button>
-  <div id="mensajeAgregar"></div>
+    <div class="card">
+      <h2>➕ Agregar nuevo verbo</h2>
+      <input type="text" id="nuevoPresente" placeholder="Presente">
+      <input type="text" id="nuevoPasado" placeholder="Pasado">
+      <input type="text" id="nuevaTraduccion" placeholder="Traducción">
+      <button onclick="agregarVerbo()">➕ Agregar Verbo</button>
+      <p id="mensaje"></p>
+    </div>
 
-  <hr>
-  <h2>📋 Lista de Verbos</h2>
-  <button onclick="mostrarVerbos()">Ver todos los verbos</button>
-  <ul id="listaVerbos"></ul>
+    <div class="card">
+      <h2>📝 Lista de Verbos</h2>
+      <button onclick="mostrarLista()">📋 Ver todos los verbos</button>
+      <ul id="listaVerbos"></ul>
+    </div>
+
+    <label class="switch">
+      🌙 <input type="checkbox" id="modoOscuro" onchange="toggleModo()"> ☀️
+    </label>
+  </div>
+
+  <script src="/static/script.js"></script>
 </body>
 </html>
-
-
