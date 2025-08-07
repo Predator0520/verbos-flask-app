@@ -29,6 +29,13 @@ body {
   padding: 12px;
   border-radius: 10px;
   margin-bottom: 10px;
+  color: #111;
+}
+
+/* Corrige color en modo oscuro */
+.dark .flashcard {
+  background: #263238;
+  color: #fff;
 }
 
 input[type="text"] {
