@@ -1,98 +1,101 @@
 body {
   font-family: 'Segoe UI', sans-serif;
-  margin: 0;
+  background: #f6f7fb;
   padding: 20px;
-  background: #f5f7fa;
-  color: #333;
-  transition: background 0.3s, color 0.3s;
+  transition: all 0.3s ease;
 }
 
 .container {
-  max-width: 800px;
+  max-width: 900px;
   margin: auto;
-}
-
-.titulo {
   text-align: center;
-  font-size: 1.8em;
-  margin-bottom: 30px;
 }
 
-.menu-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: center;
-  margin-bottom: 30px;
+h1 {
+  font-size: 2em;
+  margin-bottom: 20px;
 }
 
-.card-btn {
-  flex: 1 1 30%;
-  min-width: 180px;
-  padding: 20px;
-  text-align: center;
-  border-radius: 12px;
-  color: white;
-  font-weight: bold;
-  font-size: 1.2em;
-  cursor: pointer;
-  transition: transform 0.2s;
+.hidden {
+  display: none;
 }
-
-.card-btn:hover {
-  transform: scale(1.05);
-}
-
-.green { background-color: #4CAF50; }
-.orange { background-color: #ff9800; }
-.purple { background-color: #9c27b0; }
 
 .card {
-  background: #fff;
-  padding: 15px 25px;
-  margin-bottom: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  background: white;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-top: 20px;
+  text-align: left;
   position: relative;
 }
 
-input[type="text"] {
-  padding: 8px;
+input[type="text"], select {
+  padding: 10px;
   margin: 5px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #ccc;
+  width: 180px;
 }
 
 button {
-  background: #4CAF50;
-  color: white;
+  padding: 10px 16px;
+  margin: 5px;
   border: none;
-  padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background 0.2s;
+  font-weight: bold;
+  transition: all 0.2s ease;
 }
 
-button:hover {
-  background: #388E3C;
+.btn-practica {
+  background: #4CAF50;
+  color: white;
+}
+
+.btn-verbos {
+  background: #FF9800;
+  color: white;
+}
+
+.btn-agregar {
+  background: #9C27B0;
+  color: white;
+  width: 50%;
+}
+
+.btn-sub {
+  background: #00BCD4;
+  color: white;
+}
+
+.btn-cerrar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  font-size: 1.4em;
+  border: none;
+  color: #888;
 }
 
 .flashcard {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 1.2em;
-  font-weight: bold;
   background: #e3f2fd;
   padding: 10px;
   border-radius: 10px;
+  font-size: 1.2em;
+  font-weight: bold;
+  margin-bottom: 10px;
+  display: inline-block;
 }
 
-.modo-switch {
-  position: absolute;
+.modo {
+  position: fixed;
   top: 10px;
   right: 20px;
 }
 
+/* Dark mode */
 .dark {
   background: #1e1e1e;
   color: #f1f1f1;
@@ -100,26 +103,17 @@ button:hover {
 
 .dark .card {
   background: #333;
-  color: #f1f1f1;
-}
-
-.dark .flashcard {
-  background: #264653;
-  color: #e9ecef;
+  color: #fff;
 }
 
 .dark input,
+.dark select,
 .dark button {
-  background: #444;
+  background: #555;
   color: white;
-  border: 1px solid #777;
+  border: 1px solid #888;
 }
 
-/* Botón cerrar */
-.cerrar {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  font-size: 1.3em;
-  cursor: pointer;
+.dark .flashcard {
+  background: #444;
 }
