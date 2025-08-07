@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>App de Verbos</title>
+  <title>App de Verbos en Inglés</title>
   <link rel="stylesheet" href="/static/style.css" />
   <script defer src="/static/script.js"></script>
 </head>
+
 <body>
   <div class="modo-oscuro-toggle">
     <span>🌙</span>
@@ -14,73 +16,66 @@
     <span>🌞</span>
   </div>
 
-  <h1 class="titulo-principal">🎓 App de Verbos en Inglés</h1>
+  <h1 class="titulo">🎓 App de Verbos en Inglés</h1>
 
   <div class="botones-principales">
-    <button class="btn-practicar" onclick="mostrarPantallaUsuario()">🎯 Práctica</button>
-    <button class="btn-ver" onclick="mostrarSeccion('listaCard')">🗞 Ver Verbos</button>
-    <button class="btn-agregar" onclick="mostrarSeccion('agregarCard')">➕ Agregar Verbo</button>
+    <button class="btn-practicar" onclick="mostrarPantallaInicio()">🎯 Práctica</button>
+    <button class="btn-ver" onclick="toggleListaVerbos()">📄 Ver Verbos</button>
   </div>
 
-  <!-- Pantalla de ingreso de nombre de usuario o invitado -->
-  <div class="card hidden" id="usuarioCard">
-    <h2>👤 Ingresar nombre o usar modo invitado</h2>
-    <input type="text" id="nombreUsuario" placeholder="Escribe tu nombre" />
-    <button onclick="continuarComoUsuario()">Entrar</button>
+  <div class="boton-agregar">
+    <button class="btn-agregar" onclick="mostrarFormularioAgregar()">➕ Agregar Verbo</button>
+  </div>
+
+  <div id="pantallaInicio" class="card hidden">
+    <h2>👤 Ingresar nombre o continuar como invitado</h2>
+    <input type="text" id="nombreUsuario" placeholder="Tu nombre aquí" />
+    <button onclick="continuarComoUsuario()">Continuar</button>
     <button onclick="continuarComoInvitado()">Modo Invitado</button>
   </div>
 
-  <!-- Pantalla de selección de tipo de práctica -->
-  <div class="card hidden" id="seleccionTipoCard">
-    <h2>📚 Selecciona el tipo de verbos para practicar</h2>
-    <button onclick="seleccionarTipoPractica('regulares')">Regulares</button>
-    <button onclick="seleccionarTipoPractica('irregulares')">Irregulares</button>
-    <button onclick="seleccionarTipoPractica('todos')">Todos los verbos</button>
+  <div id="pantallaSeleccion" class="card hidden">
+    <h2>🧠 ¿Qué deseas practicar?</h2>
+    <button onclick="seleccionarTipoVerbo('regulares')">Regulares</button>
+    <button onclick="seleccionarTipoVerbo('irregulares')">Irregulares</button>
+    <button onclick="seleccionarTipoVerbo('todos')">Todos</button>
   </div>
 
-  <!-- Pantalla de selección de cantidad o ilimitado -->
-  <div class="card hidden" id="cantidadCard">
-    <h2>🔢 ¿Cuántos verbos quieres practicar?</h2>
-    <p id="cantidadActual">Cantidad: 10</p>
-    <button onclick="aumentarCantidad()">+5</button>
-    <button onclick="modoIlimitado()">Práctica ilimitada</button>
-    <button onclick="iniciarPractica()">Iniciar</button>
+  <div id="pantallaCantidad" class="card hidden">
+    <h2>📊 ¿Cuántos verbos quieres practicar?</h2>
+    <div class="cantidad-control">
+      <button onclick="restarCantidad()">➖</button>
+      <span id="cantidadSeleccionada">10</span>
+      <button onclick="sumarCantidad()">➕</button>
+    </div>
+    <button onclick="iniciarPracticaConCantidad()">Iniciar</button>
+    <button onclick="iniciarPracticaIlimitada()">Práctica Ilimitada</button>
   </div>
 
-  <!-- Tarjeta de práctica -->
-  <div class="card hidden" id="practicaCard">
+  <div id="practicaCard" class="card hidden">
     <h2 id="pregunta" class="pregunta"></h2>
     <input type="text" id="respuesta" placeholder="Tu respuesta aquí" />
-    <button onclick="verificar()">✅ Verificar</button>
-    <span id="resultado"></span>
-    <button onclick="finalizarPractica()">❌ Finalizar</button>
+    <button class="btn-verificar" onclick="verificar()">✅ Verificar</button>
+    <button class="btn-cerrar" onclick="terminarPractica()">❌</button>
+    <p id="resultado"></p>
   </div>
 
-  <!-- Tarjeta de resultados -->
-  <div class="card hidden" id="resultadoCard">
-    <h2>📊 Resultados de la sesión</h2>
-    <p id="statsResumen"></p>
-    <button onclick="reiniciar()">🔄 Nueva práctica</button>
+  <div id="resumenCard" class="card hidden">
+    <h2>📈 Estadísticas</h2>
+    <p id="estadisticas"></p>
+    <button onclick="cerrarResumen()">Cerrar</button>
   </div>
 
-  <!-- Agregar verbo -->
-  <div class="card hidden" id="agregarCard">
-    <h2>➕ Agregar Verbo</h2>
+  <div id="listaCard" class="card hidden">
+    <h2>📋 Lista de Verbos</h2>
+    <button class="btn-ver-todos" onclick="mostrarVerbos()">📂 Ver todos los verbos</button>
+    <ul id="listaVerbos"></ul>
+    <button class="btn-cerrar" onclick="toggleListaVerbos()">❌</button>
+  </div>
+
+  <div id="agregarCard" class="card hidden">
+    <h2>➕ Agregar Nuevo Verbo</h2>
     <input type="text" id="nuevoPresente" placeholder="Presente" />
     <input type="text" id="nuevoPasado" placeholder="Pasado" />
-    <input type="text" id="nuevaTraduccion" placeholder="Traducción" />
+    <input type="text" id="nuevoTraduccion" placeholder="Traducción" />
     <select id="nuevoTipo">
-      <option value="regular">Regular</option>
-      <option value="irregular">Irregular</option>
-    </select>
-    <button onclick="agregarVerbo()">Agregar</button>
-  </div>
-
-  <!-- Lista de verbos -->
-  <div class="card hidden" id="listaCard">
-    <h2>🗞 Lista de Verbos <button onclick="toggleLista()">📂 Ver todos los verbos</button></h2>
-    <ul id="listaVerbos"></ul>
-  </div>
-</body>
-</html>
-
