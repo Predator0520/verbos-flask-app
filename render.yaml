@@ -6,6 +6,5 @@ services:
     startCommand: gunicorn main:app
     disk:
       name: data
-      mountPath: /data
+      mountPath: /var/data   # <— Render monta aquí
       sizeGB: 1
-
