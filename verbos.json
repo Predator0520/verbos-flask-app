@@ -1,16 +1,7 @@
 [
-  {
-    "presente": "go",
-    "pasado": "went",
-    "traduccion": "ir",
-    "categoria": "irregular"
-  },
-  {
-    "presente": "play",
-    "pasado": "played",
-    "traduccion": "jugar",
-    "categoria": "regular"
-  }
+  { "presente": "go", "pasado": "went", "traduccion": "ir", "categoria": "irregular" },
+  { "presente": "play", "pasado": "played", "traduccion": "jugar", "categoria": "regular" }
 ]
+
 
 
