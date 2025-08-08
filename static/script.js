@@ -1,9 +1,9 @@
 // ===== UI =====
 const ui = {
   mostrar: (id) => {
-    // Oculta modal de resumen por si quedó abierto de una sesión anterior
+    // Oculta modal de resumen por si quedó abierto de una sesión anterior (hard hide)
     const modal = document.getElementById("resumen");
-    if (modal) modal.classList.add("hidden");
+    if (modal) { modal.classList.add("hidden"); modal.style.display = "none"; }
 
     // Deshabilitar Ver Verbos durante setup o juego
     document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
@@ -190,9 +190,9 @@ const practica = {
   },
 
   async iniciar(){
-    // Oculta el modal SIEMPRE al iniciar una nueva práctica
+    // Oculta modal SIEMPRE al iniciar una nueva práctica (hard hide)
     const modal = document.getElementById("resumen");
-    if (modal) modal.classList.add("hidden");
+    if (modal) { modal.classList.add("hidden"); modal.style.display = "none"; }
 
     let arr = [];
     try{
@@ -235,7 +235,6 @@ const practica = {
 
   _pintarPregunta(){
     if (!this.ilimitado && this.idx >= this.preguntas.length) {
-      // Ya no mostramos resumen aquí: sólo si termina por completar todas.
       this.finalizar();
       return;
     }
@@ -292,7 +291,7 @@ const practica = {
       })
     });
 
-    // Completar resumen
+    // Resumen (hard show)
     document.getElementById("rUsuario").textContent = this.usuario;
     document.getElementById("rTipo").textContent = this.tipo;
     document.getElementById("rModo").textContent = modo;
@@ -301,10 +300,10 @@ const practica = {
     document.getElementById("rStreak").textContent = this.streakMax;
     document.getElementById("rTiempo").textContent = `${Math.floor(secs/60)}m ${secs%60}s (${porcentaje}%)`;
 
-    // Mostrar modal SÓLO ahora
-    document.getElementById("resumen").classList.remove("hidden");
+    const modal = document.getElementById("resumen");
+    modal.classList.remove("hidden");
+    modal.style.display = "flex";
 
-    // Permitir ver verbos otra vez
     document.getElementById("btn-ver-verbos").disabled = false;
   },
 
