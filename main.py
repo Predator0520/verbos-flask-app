@@ -46,17 +46,17 @@ def _read_json(path, default):
     return default
 
 def _write_json_atomic(path: str, data):
-    """Escritura atómica + fsync: escribe a .tmp y reemplaza el real"""
+    """Escritura atómica + fsync"""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = f"{path}.tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
         f.flush()
         os.fsync(f.fileno())
-    os.replace(tmp, path)  # atómico en la mayoría de FS
+    os.replace(tmp, path)
 
 def _backup_rotate(path: str, max_keep: int = 7):
-    """Crea una copia fechada y rota (solo para verbos)"""
+    """Copia fechada y rotación para verbos"""
     if not os.path.exists(path):
         return
     base_dir = os.path.dirname(path)
@@ -69,7 +69,6 @@ def _backup_rotate(path: str, max_keep: int = 7):
             os.fsync(dst.fileno())
     except Exception:
         return
-    # rotar
     files = sorted([f for f in os.listdir(base_dir) if f.startswith("backup-verbos-") and f.endswith(".json")])
     excess = len(files) - max_keep
     for i in range(excess):
@@ -84,12 +83,10 @@ def _write_json_safe(path: str, data, do_backup=False):
     _write_json_atomic(path, data)
 
 def _migrate_if_missing():
-    # Si no existe en /var/data, intentar "seed" desde repo
+    # Si no existe en /var/data, seed desde repo
     if not os.path.exists(VERBOS_FILE):
         seed = _read_json("verbos.json", [])
-        seed_norm = []
-        for v in seed:
-            seed_norm.append(_normalize_verb_input(v))
+        seed_norm = [_normalize_verb_input(v) for v in seed]
         _write_json_safe(VERBOS_FILE, seed_norm, do_backup=False)
     if not os.path.exists(STATS_FILE):
         seed = _read_json("stats.json", [])
@@ -101,7 +98,7 @@ def _migrate_if_missing():
 def _is_vowel(c): return c.lower() in "aeiou"
 
 def _gerund(base: str) -> str:
-    """Gerundio simple para autocompletar (-ing)."""
+    """Gerundio simple -ing."""
     w = (base or "").strip().lower()
     if not w:
         return ""
@@ -113,7 +110,7 @@ def _gerund(base: str) -> str:
         if w.endswith("ee"):
             return w + "ing"     # see -> seeing
         return w[:-1] + "ing"    # make -> making
-    # duplicación CVC corta: run -> running
+    # CVC: run->running, stop->stopping
     if len(w) >= 3 and (not _is_vowel(w[-1])) and _is_vowel(w[-2]) and (not _is_vowel(w[-3])):
         if w[-1] not in "wxy":
             return w + w[-1] + "ing"
@@ -156,7 +153,7 @@ def _normalize_verb_input(v: Dict) -> Dict:
     return out
 
 def _normalize_verb_strict_for_add(data: Dict) -> Dict:
-    # Requisitos mínimos: permitimos omitir traduccion_pasado (se completa con traduccion)
+    # Requisitos mínimos: permitimos omitir traduccion_pasado (se completa)
     req_min = ["presente", "pasado", "traduccion", "categoria"]
     if not all(k in data and str(data[k]).strip() for k in req_min):
         raise ValueError("Faltan campos obligatorios (presente, pasado, traducción y categoría).")
