@@ -1,25 +1,21 @@
 // ===== UI =====
 const ui = {
   mostrar: (id) => {
-    const modal = document.getElementById("resumen");
-    if (modal) { modal.classList.add("hidden"); modal.style.display = "none"; }
-    document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
-
-    ["menu","setup","play","lista","agregar","stats"].forEach(sec => {
+    const resumen = document.getElementById("resumen");
+    if (resumen) { resumen.classList.add("hidden"); resumen.style.display = "none"; }
+    ["menu","setup","play","lista","stats"].forEach(sec => {
       document.getElementById(sec).classList.add("hidden");
     });
     document.getElementById(id).classList.remove("hidden");
+
+    document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
 
     if(id==="setup"){
       ui.irPaso(1);
       setTimeout(() => {
         const showWH = (practica.modo === 'wh');
-        const blockWH = document.getElementById("blockWH");
-        const blockTipos = document.getElementById("blockTipos");
-        if (blockWH && blockTipos){
-          blockWH.classList.toggle("hidden", !showWH);
-          blockTipos.classList.toggle("hidden", showWH);
-        }
+        document.getElementById("blockWH").classList.toggle("hidden", !showWH);
+        document.getElementById("blockTipos").classList.toggle("hidden", showWH);
       }, 0);
 
       document.getElementById("setupTitle").textContent =
@@ -29,12 +25,13 @@ const ui = {
     }
   },
   irPaso: (n) => {
-    ["step1","step2","step3"].forEach(s => {
-      const el = document.getElementById(s);
-      if (el) el.classList.add("hidden");
-    });
-    const step = document.getElementById(`step${n}`);
-    if (step) step.classList.remove("hidden");
+    ["step1","step2","step3"].forEach(s => document.getElementById(s).classList.add("hidden"));
+    document.getElementById(`step${n}`).classList.remove("hidden");
+  },
+  cerrarResumen: () => {
+    const modal = document.getElementById("resumen");
+    modal.classList.add("hidden");
+    modal.style.display = "none";
   },
 
   // ==== Usuarios (sidebar) ====
@@ -125,6 +122,7 @@ const ui = {
 // ===== VERBOS =====
 const datos = {
   verbos: [],
+  _modalMode: "add",   // 'add' | 'edit'
   _editIndex: -1,
 
   listarVerbos: async () => {
@@ -157,7 +155,7 @@ const datos = {
         const idx = Number(e.currentTarget.dataset.idx);
         const action = e.currentTarget.dataset.action;
         if (action === "edit") {
-          datos._abrirModal(idx);
+          datos.abrirModalEditar(idx);
         } else {
           if (!confirm("¿Eliminar verbo?")) return;
           const res = await fetch("/eliminar_verbo", {
@@ -173,38 +171,24 @@ const datos = {
     });
   },
 
-  agregar: async () => {
-    const g = (id)=>document.getElementById(id).value.trim();
-    const presente = g("nuevoPresente").toLowerCase();
-    const pasado = g("nuevoPasado").toLowerCase();
-    const traduccion = g("nuevaTraduccion").toLowerCase();
-    const traduccion_pasado = g("nuevaTraduccionPasado").toLowerCase();
-    const continuo = g("nuevoContinuo").toLowerCase();
-    const traduccion_continuo = g("nuevaTraduccionContinuo").toLowerCase();
-    const categoria = document.getElementById("nuevaCategoria").value;
-
-    if (!presente || !pasado || !traduccion || !traduccion_pasado) {
-      document.getElementById("mensajeAgregar").textContent = "⚠️ Completa base, pasado y traducciones. El continuo es opcional (se autocompleta).";
-      return;
-    }
-
-    const res = await fetch("/agregar_verbo", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria})
+  // ---- Modal ----
+  abrirModalAgregar: () => {
+    datos._modalMode = "add";
+    datos._editIndex = -1;
+    document.getElementById("modalVerbTitle").textContent = "➕ Agregar verbo";
+    ["editPresente","editPasado","editTraduccion","editTraduccionPasado","editContinuo","editTraduccionContinuo"].forEach(id => {
+      document.getElementById(id).value = "";
     });
-    const data = await res.json();
-    document.getElementById("mensajeAgregar").textContent = data.msg || (data.ok ? "Guardado" : "Error");
-    if (data.ok) {
-      ["nuevoPresente","nuevoPasado","nuevaTraduccion","nuevaTraduccionPasado","nuevoContinuo","nuevaTraduccionContinuo"]
-        .forEach(id => document.getElementById(id).value = "");
-    }
+    document.getElementById("editCategoria").value = "regular";
+    document.getElementById("modalVerb").classList.remove("hidden");
+    setTimeout(()=>document.getElementById("editPresente").focus(),0);
   },
 
-  // Modal edición
-  _abrirModal: (idx) => {
+  abrirModalEditar: (idx) => {
+    datos._modalMode = "edit";
     datos._editIndex = idx;
     const v = datos.verbos[idx];
+    document.getElementById("modalVerbTitle").textContent = "✏️ Editar verbo";
     document.getElementById("editPresente").value = v.presente || "";
     document.getElementById("editPasado").value = v.pasado || "";
     document.getElementById("editTraduccion").value = v.traduccion || "";
@@ -212,46 +196,58 @@ const datos = {
     document.getElementById("editContinuo").value = v.continuo || "";
     document.getElementById("editTraduccionContinuo").value = v.traduccion_continuo || "";
     document.getElementById("editCategoria").value = v.categoria || "regular";
-    document.getElementById("modalEdit").classList.remove("hidden");
+    document.getElementById("modalVerb").classList.remove("hidden");
+    setTimeout(()=>document.getElementById("editPresente").focus(),0);
   },
+
   cerrarModal: () => {
-    document.getElementById("modalEdit").classList.add("hidden");
-    datos._editIndex = -1;
+    document.getElementById("modalVerb").classList.add("hidden");
   },
-  confirmarEdicion: async () => {
-    const idx = datos._editIndex;
-    if (idx < 0) return;
-    const g = (id)=>document.getElementById(id).value.trim();
-    const verbo = {
-      presente: g("editPresente").toLowerCase(),
-      pasado: g("editPasado").toLowerCase(),
-      traduccion: g("editTraduccion").toLowerCase(),
-      traduccion_pasado: g("editTraduccionPasado").toLowerCase(),
-      continuo: g("editContinuo").toLowerCase(),
-      traduccion_continuo: g("editTraduccionContinuo").toLowerCase(),
+  cerrarModalDesdeOverlay: (e) => {
+    if (e.target.id === "modalVerb") datos.cerrarModal();
+  },
+
+  guardarModal: async () => {
+    const g = (id)=>document.getElementById(id).value.trim().toLowerCase();
+    const payload = {
+      presente: g("editPresente"),
+      pasado: g("editPasado"),
+      traduccion: g("editTraduccion"),
+      traduccion_pasado: g("editTraduccionPasado"),
+      continuo: g("editContinuo"),
+      traduccion_continuo: g("editTraduccionContinuo"),
       categoria: document.getElementById("editCategoria").value
     };
-    if (!verbo.presente || !verbo.pasado || !verbo.traduccion || !verbo.traduccion_pasado) {
-      alert("Completa base, pasado y sus traducciones.");
+    if (!payload.presente || !payload.pasado || !payload.traduccion || !payload.traduccion_pasado) {
+      alert("Completa base, pasado y sus traducciones. El continuo es opcional (se autocompleta).");
       return;
     }
-    const res = await fetch("/editar_verbo", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({index: idx, verbo})
-    });
-    const data = await res.json();
-    if (data.ok) {
+
+    if (datos._modalMode === "add") {
+      const res = await fetch("/agregar_verbo", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!data.ok) { alert(data.msg || "Error al agregar"); return; }
       datos.cerrarModal();
-      datos.listarVerbos();
+      if (!document.getElementById("lista").classList.contains("hidden")) datos.listarVerbos();
     } else {
-      alert(data.msg || "Error al editar");
+      const res = await fetch("/editar_verbo", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({index: datos._editIndex, verbo: payload})
+      });
+      const data = await res.json();
+      if (!data.ok) { alert(data.msg || "Error al editar"); return; }
+      datos.cerrarModal();
+      if (!document.getElementById("lista").classList.contains("hidden")) datos.listarVerbos();
     }
   },
 
-  exportar: () => {
-    window.location = "/exportar_verbos";
-  },
+  // Export/Import
+  exportar: () => window.location = "/exportar_verbos",
   importar: async (file) => {
     if (!file) return;
     const fd = new FormData();
@@ -266,8 +262,8 @@ const datos = {
 
 // ===== PRÁCTICA =====
 const practica = {
-  modo: "simple",      // simple | continuous | wh
-  whTipo: "traduccion",// 'traduccion' | 'oraciones'
+  modo: "simple",
+  whTipo: "traduccion",
   usuario: "invitado",
   tipo: "todos",
   cantidad: 10,
@@ -299,8 +295,8 @@ const practica = {
   },
 
   async iniciar(){
-    const modal = document.getElementById("resumen");
-    if (modal) { modal.classList.add("hidden"); modal.style.display = "none"; }
+    const resumen = document.getElementById("resumen");
+    if (resumen) { resumen.classList.add("hidden"); resumen.style.display = "none"; }
 
     let arr = [];
     try{
@@ -486,21 +482,21 @@ const practica = {
 // ===== Atajos =====
 document.addEventListener("keydown", (e)=>{
   // Cerrar modales con ESC
-  const modalEdit = document.getElementById("modalEdit");
-  if (e.key === "Escape" && modalEdit && !modalEdit.classList.contains("hidden")) {
+  const modalVerb = document.getElementById("modalVerb");
+  if (e.key === "Escape" && modalVerb && !modalVerb.classList.contains("hidden")) {
     datos.cerrarModal();
     return;
   }
   const resumen = document.getElementById("resumen");
   if (e.key === "Escape" && resumen && !resumen.classList.contains("hidden")) {
-    resumen.classList.add("hidden");
-    resumen.style.display = "none";
+    ui.cerrarResumen();
     return;
   }
 
+  // En práctica
   const inPlay = !document.getElementById("play").classList.contains("hidden");
   if (!inPlay) {
-    if (e.key === "Escape") ui.mostrar('menu'); // ESC vuelve al menú
+    if (e.key === "Escape") ui.mostrar('menu');
     return;
   }
 
