@@ -17,18 +17,20 @@
     <!-- Menú -->
     <section id="menu" class="panel center">
       <div class="cards">
-        <button class="card btn-primary" onclick="ui.mostrar('setup')">🎯 Práctica</button>
-        <button id="btn-ver-verbos" class="card btn-warning" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver Verbos</button>
-        <button class="card btn-purple" onclick="ui.mostrar('agregar')">➕ Agregar Verbo</button>
+        <button class="card btn-primary" onclick="practica.setModo('simple_past'); ui.mostrar('setup')">🎯 Práctica Simple Past</button>
+        <button class="card btn-warning" onclick="practica.setModo('past_continuous'); ui.mostrar('setup')">⏳ Pasado Continuo</button>
+        <button class="card btn-purple" onclick="practica.setModo('wh'); ui.mostrar('setup')">❓ WH Questions</button>
       </div>
       <div class="bottom-cta">
+        <button id="btn-ver-verbos" class="btn-ghost" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver Verbos</button>
+        <button class="btn-ghost" onclick="ui.mostrar('agregar')">➕ Agregar Verbo</button>
         <button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
       </div>
     </section>
 
     <!-- Wizard práctica -->
     <section id="setup" class="panel hidden">
-      <h2>🧠 Configurar práctica</h2>
+      <h2 id="setupTitle">🧠 Configurar práctica</h2>
       <div id="step1">
         <div class="setup-block">
           <label>Tu nombre</label>
@@ -48,6 +50,7 @@
             <button class="btn-chip" onclick="practica.setTipo('irregular'); ui.irPaso(3)">Irregulares</button>
             <button class="btn-chip" onclick="practica.setTipo('todos'); ui.irPaso(3)">Todos</button>
           </div>
+          <small id="notaModo"></small>
         </div>
         <div class="row">
           <button class="btn-ghost" onclick="ui.irPaso(1)">← Atrás</button>
@@ -79,6 +82,7 @@
       <div class="header-row">
         <div class="pill" id="pillUsuario">👤 Invitado</div>
         <div class="pill" id="pillTipo">Tipo: todos</div>
+        <div class="pill" id="pillModoPrac">Modo: simple past</div>
         <div class="pill" id="pillLimite">Límite: 10</div>
         <div class="pill" id="pillTimer">⏱ 00:00</div>
       </div>
@@ -105,7 +109,8 @@
           <h3>📋 Resumen de la sesión</h3>
           <p><strong>Usuario:</strong> <span id="rUsuario"></span></p>
           <p><strong>Tipo:</strong> <span id="rTipo"></span></p>
-          <p><strong>Modo:</strong> <span id="rModo"></span></p>
+          <p><strong>Modo práctica:</strong> <span id="rModoPractica"></span></p>
+          <p><strong>Modo (dificultad):</strong> <span id="rModo"></span></p>
           <p>✅ Correctas: <span id="rOk"></span></p>
           <p>❌ Incorrectas: <span id="rBad"></span></p>
           <p>🔥 Racha máxima: <span id="rStreak"></span></p>
@@ -135,6 +140,8 @@
         <input type="text" id="nuevoPasado" placeholder="Simple past" />
         <input type="text" id="nuevaTraduccion" placeholder="Traducción (ES)" />
         <input type="text" id="nuevaTraduccionPasado" placeholder="Traducción del pasado (ES)" />
+        <input type="text" id="nuevoGerundio" placeholder="Gerundio (v-ing) ej: playing" />
+        <input type="text" id="nuevaTraduccionContinuo" placeholder="Traducción del pasado continuo (ES) ej: estaba jugando" />
         <select id="nuevaCategoria">
           <option value="regular">Regular</option>
           <option value="irregular">Irregular</option>
@@ -154,7 +161,6 @@
         <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button></div>
       </div>
 
-      <!-- Sidebar usuarios + contenido -->
       <div class="stats-layout">
         <aside class="users-panel">
           <div class="users-header">
