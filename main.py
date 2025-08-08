@@ -1,10 +1,12 @@
 from flask import Flask, jsonify, request, render_template
-import json, os, random, re
+import json
+import os
+import random
 from datetime import datetime
 
 app = Flask(__name__)
 
-# ===== Persistencia =====
+# ===== Persistencia (Render usa /var/data) =====
 DEFAULT_DATA_DIR = "/var/data"
 DATA_DIR = os.environ.get("DATA_DIR", DEFAULT_DATA_DIR)
 
@@ -27,8 +29,10 @@ STATS_FILE  = os.path.join(DATA_DIR, "stats.json")
 def _leer_json(path, default):
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
-            try: return json.load(f)
-            except json.JSONDecodeError: return default
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return default
     return default
 
 def _escribir_json(path, data):
@@ -49,11 +53,11 @@ _migrar_si_falta()
 # ---------- Datos ----------
 def cargar_verbos():
     verbos = _leer_json(VERBOS_FILE, [])
+    # Compat: rellenar campos nuevos si faltan
     for v in verbos:
-        # Backwards compatibility
         v.setdefault("traduccion_pasado", v.get("traduccion", ""))
-        v.setdefault("gerundio", "")  # v-ing (going, playing)
-        v.setdefault("traduccion_continuo", "")  # "estaba jugando"
+        v.setdefault("continuo", "")  # past continuous en inglés (p.ej., "was/were going")
+        v.setdefault("traduccion_continuo", v.get("traduccion_pasado", v.get("traduccion","")))
     return verbos
 
 def guardar_verbos(v): _escribir_json(VERBOS_FILE, v)
@@ -73,10 +77,9 @@ def obtener_verbos():
 @app.route("/agregar_verbo", methods=["POST"])
 def agregar_verbo():
     data = request.json or {}
-    req = ["presente","pasado","traduccion","traduccion_pasado","categoria"]
-    # gerundio y traduccion_continuo son opcionales (pero recomendados)
+    req = ["presente","pasado","traduccion","traduccion_pasado","continuo","traduccion_continuo","categoria"]
     if not all(k in data and str(data[k]).strip() for k in req):
-        return jsonify({"ok": False, "msg": "Faltan campos obligatorios"}), 400
+        return jsonify({"ok": False, "msg": "Faltan campos"}), 400
 
     verbos = cargar_verbos()
     if any(v["presente"].lower().strip() == data["presente"].lower().strip() for v in verbos):
@@ -87,8 +90,8 @@ def agregar_verbo():
         "pasado": data["pasado"].strip().lower(),
         "traduccion": data["traduccion"].strip().lower(),
         "traduccion_pasado": data["traduccion_pasado"].strip().lower(),
-        "gerundio": (data.get("gerundio") or "").strip().lower(),
-        "traduccion_continuo": (data.get("traduccion_continuo") or "").strip().lower(),
+        "continuo": data["continuo"].strip().lower(),
+        "traduccion_continuo": data["traduccion_continuo"].strip().lower(),
         "categoria": data["categoria"].strip().lower()
     })
     guardar_verbos(verbos)
@@ -106,7 +109,7 @@ def editar_verbo():
         return jsonify({"ok": False, "msg": "Índice inválido"}), 400
 
     nuevo = data["verbo"]
-    req = ["presente","pasado","traduccion","traduccion_pasado","categoria"]
+    req = ["presente","pasado","traduccion","traduccion_pasado","continuo","traduccion_continuo","categoria"]
     if not all(k in nuevo and str(nuevo[k]).strip() for k in req):
         return jsonify({"ok": False, "msg": "Faltan campos"}), 400
 
@@ -115,8 +118,8 @@ def editar_verbo():
         "pasado": nuevo["pasado"].strip().lower(),
         "traduccion": nuevo["traduccion"].strip().lower(),
         "traduccion_pasado": nuevo["traduccion_pasado"].strip().lower(),
-        "gerundio": (nuevo.get("gerundio") or "").strip().lower(),
-        "traduccion_continuo": (nuevo.get("traduccion_continuo") or "").strip().lower(),
+        "continuo": nuevo["continuo"].strip().lower(),
+        "traduccion_continuo": nuevo["traduccion_continuo"].strip().lower(),
         "categoria": nuevo["categoria"].strip().lower()
     }
     guardar_verbos(verbos)
@@ -135,121 +138,116 @@ def eliminar_verbo():
     guardar_verbos(verbos)
     return jsonify({"ok": True, "msg": "🗑️ Verbo eliminado"})
 
-# ---------- Preguntas ----------
-WH_BANK = [
-    # (pregunta_con_hueco, pista_es, respuesta)
-    ("__ did you arrive?", "¿cuándo?", "when"),
-    ("__ did you go yesterday?", "¿adónde / dónde?", "where"),
-    ("__ is your favorite sport?", "¿cuál (de varios)?", "which"),
-    ("__ is this book?", "¿de quién?", "whose"),
-    ("__ did it happen?", "¿por qué?", "why"),
-    ("__ are you?", "¿cómo / estado?", "how"),
-    ("__ much water do you drink?", "¿cuánto? (incontable)", "how much"),
-    ("__ many apples do you have?", "¿cuántos? (contable)", "how many"),
-    ("__ long did it take?", "¿cuánto tiempo?", "how long"),
-    ("__ is your name?", "¿cuál es tu nombre?", "what"),
-    ("__ did you talk to?", "¿con quién?", "who"),
-]
-
+# ---------- Preguntas (Simple/Past Continuous) ----------
 @app.route("/preguntas", methods=["POST"])
 def preguntas():
     """
-    Recibe:
-      {
-        modo_practica: 'simple_past' | 'past_continuous' | 'wh',
-        tipo: 'regular'|'irregular'|'todos',
-        cantidad: 10|20|30|40|'ilimitado'
-      }
-    Devuelve arreglo de {pregunta, respuesta}
+    Recibe: { modo: 'simple'|'continuous', tipo: 'regular'|'irregular'|'todos', cantidad: int|'ilimitado' }
+    Simple Past (balanceado):
+      1) presente -> pasado
+      2) pasado   -> presente
+      3) presente -> español
+      4) pasado   -> español (traduccion_pasado)
+      5) español  -> presente
+      6) español  -> pasado
+    Past Continuous (balanceado):
+      1) presente -> continuo
+      2) continuo -> presente
+      3) presente -> español (base)
+      4) continuo -> español (traduccion_continuo)
+      5) español (base) -> presente
+      6) español (cont) -> continuo
     """
     data = request.json or {}
-    modo = data.get("modo_practica", "simple_past")
+    modo = data.get("modo", "simple")
     tipo = data.get("tipo", "todos")
     cantidad = data.get("cantidad", "ilimitado")
 
-    # Número de preguntas
-    if isinstance(cantidad, int):
-        n = max(1, min(int(cantidad), 200))
-    else:
-        n = 30
-
-    if modo == "wh":
-        bank = WH_BANK.copy()
-        out = []
-        for i in range(n):
-            q = random.choice(bank)
-            out.append({
-                "pregunta": f"{q[0]}  (Pista: {q[1]})",
-                "respuesta": q[2]
-            })
-        return jsonify(out)
-
-    # Modo basado en verbos
     verbos = cargar_verbos()
-    if tipo != "todos":
+    if modo in ("simple", "continuous") and tipo != "todos":
         verbos = [v for v in verbos if v.get("categoria") == tipo]
     if not verbos:
         return jsonify([])
 
-    # Tipos equilibrados (6)
-    modos = ["p->past", "past->p", "p->es", "past->es", "es->p", "es->past"]
-    out = []
+    if isinstance(cantidad, int):
+        n = max(1, min(int(cantidad), 200))
+    else:
+        n = min(len(verbos) * 3, 60) or 30
+
+    preguntas = []
+    modos = ["a","b","c","d","e","f"]  # 6 slots balanceados
+
     for i in range(n):
-        m = modos[i % len(modos)]
+        code = modos[i % 6]
         v = random.choice(verbos)
-        if modo == "simple_past":
-            t_es = v.get("traduccion","")
-            t_es_past = v.get("traduccion_pasado", t_es or "")
-            if m == "p->past":
-                out.append({"pregunta": f"¿Cuál es el pasado de '{v['presente']}'?", "respuesta": v["pasado"]})
-            elif m == "past->p":
-                out.append({"pregunta": f"¿Cuál es el presente de '{v['pasado']}'?", "respuesta": v["presente"]})
-            elif m == "p->es":
-                out.append({"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?", "respuesta": t_es})
-            elif m == "past->es":
-                out.append({"pregunta": f"¿Cómo se traduce el pasado '{v['pasado']}' al español?", "respuesta": t_es_past})
-            elif m == "es->p":
-                out.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{t_es}'?", "respuesta": v["presente"]})
+        t_es = v.get("traduccion","")
+        t_es_past = v.get("traduccion_pasado", t_es)
+        cont = v.get("continuo","")
+        t_es_cont = v.get("traduccion_continuo", t_es_past or t_es)
+
+        if modo == "simple":
+            if code == "a":
+                preguntas.append({"pregunta": f"¿Cuál es el pasado de '{v['presente']}'?", "respuesta": v["pasado"]})
+            elif code == "b":
+                preguntas.append({"pregunta": f"¿Cuál es el presente de '{v['pasado']}'?", "respuesta": v["presente"]})
+            elif code == "c":
+                preguntas.append({"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?", "respuesta": t_es})
+            elif code == "d":
+                preguntas.append({"pregunta": f"¿Cómo se traduce el pasado '{v['pasado']}' al español?", "respuesta": t_es_past})
+            elif code == "e":
+                preguntas.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{t_es}'?", "respuesta": v["presente"]})
             else:
-                out.append({"pregunta": f"En inglés (pasado), ¿cómo se dice '{t_es_past}'?", "respuesta": v["pasado"]})
-        else:  # past_continuous
-            # Requiere gerundio y traducción del continuo
-            ger = v.get("gerundio") or ""
-            t_cont = v.get("traduccion_continuo") or ""
-            t_es = v.get("traduccion","")
-            # Si no tiene datos, degradamos a simple present/past equivalentes
-            if not ger or not t_cont:
-                # fallback a simple past templates
-                t_es_past = v.get("traduccion_pasado", t_es or "")
-                if m == "p->past":
-                    out.append({"pregunta": f"¿Cuál es el pasado de '{v['presente']}'?", "respuesta": v["pasado"]})
-                elif m == "past->p":
-                    out.append({"pregunta": f"¿Cuál es el presente de '{v['pasado']}'?", "respuesta": v["presente"]})
-                elif m == "p->es":
-                    out.append({"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?", "respuesta": t_es})
-                elif m == "past->es":
-                    out.append({"pregunta": f"¿Cómo se traduce el pasado '{v['pasado']}' al español?", "respuesta": t_es_past})
-                elif m == "es->p":
-                    out.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{t_es}'?", "respuesta": v["presente"]})
-                else:
-                    out.append({"pregunta": f"En inglés (pasado), ¿cómo se dice '{t_es_past}'?", "respuesta": v["pasado"]})
+                preguntas.append({"pregunta": f"En inglés (pasado), ¿cómo se dice '{t_es_past}'?", "respuesta": v["pasado"]})
+
+        else:  # continuous
+            if code == "a":
+                preguntas.append({"pregunta": f"¿Cuál es el pasado continuo de '{v['presente']}'?", "respuesta": cont})
+            elif code == "b":
+                preguntas.append({"pregunta": f"¿Cuál es el presente del continuo '{cont}'?", "respuesta": v["presente"]})
+            elif code == "c":
+                preguntas.append({"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?", "respuesta": t_es})
+            elif code == "d":
+                preguntas.append({"pregunta": f"¿Cómo se traduce el pasado continuo '{cont}' al español?", "respuesta": t_es_cont})
+            elif code == "e":
+                preguntas.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{t_es}'?", "respuesta": v["presente"]})
             else:
-                # Construimos ejemplos de pasado continuo con sujeto neutral "I" (was) o plural "they" (were)
-                subj = random.choice([("I","was"), ("they","were")])
-                eng_pc = f"{subj[1]} {ger}"  # "was/were playing"
-                if m == "p->past":
-                    out.append({"pregunta": f"En inglés (pasado continuo), completa para '{v['presente']}' con sujeto '{subj[0]}':", "respuesta": eng_pc})
-                elif m == "past->p":
-                    out.append({"pregunta": f"¿Cuál es el presente base del pasado continuo '{eng_pc}'?", "respuesta": v["presente"]})
-                elif m == "p->es":
-                    out.append({"pregunta": f"¿Cómo se traduce al español '{eng_pc}'?", "respuesta": t_cont})
-                elif m == "past->es":
-                    out.append({"pregunta": f"Traduce al español (pasado continuo): '{eng_pc}'", "respuesta": t_cont})
-                elif m == "es->p":
-                    out.append({"pregunta": f"En inglés (pasado continuo), ¿cómo se dice '{t_cont}'?", "respuesta": eng_pc})
-                else:
-                    out.append({"pregunta": f"Base form (presente) del español '{t_cont}':", "respuesta": v["presente"]})
-    return jsonify(out)
+                preguntas.append({"pregunta": f"En inglés (pasado continuo), ¿cómo se dice '{t_es_cont}'?", "respuesta": cont})
+
+    return jsonify(preguntas)
+
+# ---------- Preguntas WH ----------
+@app.route("/preguntas_wh", methods=["POST"])
+def preguntas_wh():
+    """
+    Genera preguntas de WH (mapeo EN<->ES). Balanceadas.
+    """
+    data = request.json or {}
+    cantidad = data.get("cantidad", "ilimitado")
+    bank = [
+        {"en": "who", "es": "quién"},
+        {"en": "what", "es": "qué"},
+        {"en": "when", "es": "cuándo"},
+        {"en": "where", "es": "dónde"},
+        {"en": "why", "es": "por qué"},
+        {"en": "how", "es": "cómo"},
+        {"en": "which", "es": "cuál"},
+        {"en": "whose", "es": "de quién"},
+        {"en": "how many", "es": "cuántos"},
+        {"en": "how much", "es": "cuánto"}
+    ]
+    if isinstance(cantidad, int):
+        n = max(1, min(int(cantidad), 200))
+    else:
+        n = min(len(bank) * 3, 60)
+
+    qs = []
+    for i in range(n):
+        it = random.choice(bank)
+        if i % 2 == 0:
+            qs.append({"pregunta": f"Traduce al español: '{it['en']}'", "respuesta": it["es"]})
+        else:
+            qs.append({"pregunta": f"Traduce al inglés: '{it['es']}'", "respuesta": it["en"]})
+    return jsonify(qs)
 
 # ---------- Estadísticas ----------
 @app.route("/guardar_resultado", methods=["POST"])
@@ -264,8 +262,7 @@ def guardar_resultado():
 
     registro = {
         "usuario": (data.get("usuario") or "invitado").strip(),
-        "tipo": data.get("tipo", "todos"),
-        "modo_practica": data.get("modo_practica", "simple_past"),
+        "tipo": data.get("tipo", "simple"),  # simple | continuous | wh
         "limitado": bool(data.get("limitado", False)),
         "cantidad": data.get("cantidad", "ilimitado"),
         "correctas": int(data.get("correctas", 0)),
@@ -292,11 +289,8 @@ def estadisticas():
 @app.route("/usuarios", methods=["GET"])
 def usuarios():
     stats = cargar_stats()
-    names = sorted({
-        s.get("usuario","").strip()
-        for s in stats
-        if s.get("usuario","").strip() and s.get("usuario","").lower() != "invitado"
-    })
+    names = sorted({ s.get("usuario","").strip() for s in stats
+                     if s.get("usuario","").strip() and s.get("usuario","").lower() != "invitado" })
     return jsonify(names)
 
 if __name__ == "__main__":
