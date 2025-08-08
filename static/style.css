@@ -134,6 +134,7 @@ input[type="text"], select{
 
 /* Modal */
 .modal{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:20}
+.modal.hidden{display:none !important;} /* <- clave para asegurar cierre */
 .modal-content{
   position:relative;
   background:#fff;color:#111;max-width:680px;width:92%;border-radius:12px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.35)
@@ -143,7 +144,7 @@ input[type="text"], select{
   color:#666;
 }
 
-/* Opción múltiple (WH oraciones) */
+/* Opción múltiple */
 .mc-option{
   background:#e0ecff;border:none;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;margin:4px;
 }
