@@ -39,7 +39,7 @@ body{
 
 /* Global nav */
 .global-nav{
-  position: sticky; top: 0; z-index: 5;
+  position: sticky; top: 0; z-index: 10;
   display:flex; gap:8px; padding:8px 12px; background:rgba(15,23,42,.06);
   border-bottom:1px solid var(--border);
 }
@@ -47,6 +47,22 @@ body{
   background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:6px 10px; cursor:pointer;
 }
 
+/* Dropdown Menú */
+.dropdown{
+  position: relative; display: inline-block;
+}
+.dropdown-menu{
+  position:absolute; top:100%; left:0; min-width:220px;
+  background:#fff; border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.12); padding:8px; margin-top:6px; z-index: 15;
+}
+.dropdown-menu.hidden{ display:none; }
+.dropdown-menu .menu-item{
+  width:100%; text-align:left; border:1px solid #cbd5e1; border-radius:10px; padding:8px 10px; background:#fff; margin:4px 0; cursor:pointer;
+}
+.dropdown-menu .menu-item:hover{ background:#f1f5ff; }
+
+/* Main */
 main{max-width:1100px;margin:24px auto;padding:0 12px}
 
 /* Panels */
@@ -168,3 +184,6 @@ input[type="text"], select{
 .dark .mc-option{ background:#1b2742; color:#f5f7ff; }
 .dark .global-nav{ background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08) }
 .dark .global-nav button{ background:#0f172a; color:#e5e7eb; border-color:#334155 }
+.dark .dropdown-menu{ background:#0f172a; color:#e5e7eb; border-color:#334155 }
+.dark .dropdown-menu .menu-item{ background:#0f172a; color:#e5e7eb; border-color:#334155 }
+.dark .dropdown-menu .menu-item:hover{ background:#0b1224 }
