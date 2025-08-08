@@ -1,84 +1,117 @@
-/* ====== Estilos Generales ====== */
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-    background: #f5f5f5;
-    color: #333;
-    transition: background 0.3s, color 0.3s;
+/* ===== Base ===== */
+:root{
+  --navy:#0b1e3a;
+  --card:#ffffff;
+  --text:#f4f7ff;
+  --accent:#4CAF50;
+  --warn:#ff9800;
+  --purple:#8e44ad;
+  --chip:#00bcd4;
+  --danger:#d32f2f;
 }
 
-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 20px;
-    background: #fff;
-    border-bottom: 2px solid #ddd;
+body.navy{
+  background: var(--navy);
+  color: var(--text);
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
-h1 {
-    margin: 0;
+/* Dark toggle */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(6px);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+.topbar h1{margin:0;font-size:1.2rem}
+.mode-toggle{
+  background: transparent;border:1px solid rgba(255,255,255,0.35);
+  color:#fff;border-radius:10px;padding:6px 10px;cursor:pointer
 }
 
-main {
-    padding: 20px;
+main{max-width:980px;margin:24px auto;padding:0 12px}
+
+/* Panels */
+.panel{
+  background: var(--card);
+  color:#222;
+  border-radius:16px;
+  padding:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.25);
+  margin-bottom:20px;
+}
+.center{text-align:center}
+.hidden{display:none}
+
+/* Cards menu */
+.cards{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:8px}
+.card{
+  min-width:220px; padding:24px 18px;border-radius:14px;border:none;
+  color:#fff;font-weight:700;font-size:1.05rem;cursor:pointer;
+  box-shadow:0 6px 16px rgba(0,0,0,0.25);
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.card:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(0,0,0,0.35)}
+.btn-primary{background:var(--accent)}
+.btn-warning{background:var(--warn)}
+.btn-purple{background:var(--purple)}
+.btn-ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:10px;padding:8px 12px}
+
+/* Setup blocks */
+.setup-block{margin:12px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+input[type="text"], select{
+  padding:10px;border-radius:10px;border:1px solid #ddd;outline:none
+}
+.btn{background:#2d7ef7;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
+.btn-chip{background:var(--chip);color:#fff;border:none;border-radius:999px;padding:8px 12px;cursor:pointer}
+.btn-qty{background:#2d7ef7;color:#fff;border:none;border-radius:8px;padding:8px 10px;cursor:pointer}
+.btn-qty.outline{background:transparent;color:#2d7ef7;border:2px solid #2d7ef7}
+.btn-cta{background:#00c853;color:#fff;border:none;border-radius:10px;padding:10px 14px;cursor:pointer}
+.btn-cancel{background:var(--danger);color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
+.feedback{margin-top:8px;font-weight:600}
+
+/* Pills / info chips */
+.pill{
+  display:inline-block;background:#eef2ff;color:#223;
+  border-radius:999px;padding:6px 10px;margin:4px 4px 10px 0;font-weight:700
 }
 
-.oculto {
-    display: none;
+/* Flashcard */
+.flashcard{
+  background:#e3f2fd;color:#111;border-radius:12px;padding:14px;margin:10px 0;font-size:1.1rem;font-weight:800
 }
+.dark .flashcard{background:#263238;color:#fff}
 
-/* ====== Botón modo oscuro ====== */
-.modo-btn {
-    border: none;
-    background: transparent;
-    font-size: 20px;
-    cursor: pointer;
+/* Lista de verbos */
+#listaVerbos{list-style:none;padding:0;margin:10px 0}
+#listaVerbos li{
+  background:#f7f8fc;border:1px solid #e8ebf5;border-radius:12px;
+  padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap
 }
-
-/* ====== Tarjetas principales ====== */
-.tarjetas {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
+.badge{
+  padding:4px 8px;border-radius:999px;color:#fff;font-weight:800;font-size:.8rem
 }
+.badge.regular{background:#2e7d32}
+.badge.irregular{background:#ef6c00}
+.verb{font-weight:700}
+.mini{background:#e0ecff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer}
+.mini.danger{background:#ffdfe0}
 
-.card {
-    padding: 20px 30px;
-    border: none;
-    font-size: 18px;
-    font-weight: bold;
-    cursor: pointer;
-    border-radius: 10px;
-    color: #fff;
-    min-width: 180px;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
+/* Tabla stats */
+.tabla{width:100%;border-collapse:collapse;margin-top:10px}
+.tabla th,.tabla td{border:1px solid #e9e9e9;padding:6px;text-align:left;font-size:.95rem}
+.tabla th{background:#f1f5ff}
 
-.card:hover {
-    transform: scale(1.05);
-    box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
-}
+/* Bottom CTA in menu */
+.bottom-cta{margin-top:10px}
 
-.green { background: #28a745; }
-.orange { background: #ff9800; }
-.purple { background: #9c27b0; }
-
-/* ====== Secciones ====== */
-section {
-    max-width: 500px;
-    margin: auto;
-    background: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
-}
-
-section h2 {
-    margin-top: 0;
-}
-
-/* ====*
+/* Dark mode */
+.dark .panel{background:#111827;color:#f5f7ff;border:1px solid #2b3347}
+.dark input[type="text"], .dark select{background:#0f172a;color:#e5e7eb;border:1px solid #334155}
+.dark .btn-ghost{border-color:#5b6a91}
+.dark #listaVerbos li{background:#0b1224;border-color:#1f2941}
+.dark .tabla th{background:#0b1224}
