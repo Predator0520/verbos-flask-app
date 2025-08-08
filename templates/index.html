@@ -13,7 +13,7 @@
     <button id="btn-dark" class="mode-toggle" title="Modo oscuro/claro">🌙</button>
   </header>
 
-  <!-- Barra global -->
+  <!-- Barra fija de navegación -->
   <nav class="global-nav">
     <button onclick="ui.mostrar('menu')">🏠 Menú</button>
     <button onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Verbos</button>
@@ -55,6 +55,7 @@
 
       <!-- Paso 2 -->
       <div id="step2" class="hidden">
+        <!-- Tipos para simple/continuous -->
         <div id="blockTipos" class="setup-block">
           <label>Tipo de verbos</label>
           <div class="row">
@@ -64,11 +65,12 @@
           </div>
         </div>
 
+        <!-- Submodos para WH -->
         <div id="blockWH" class="setup-block hidden">
           <label>Modo WH</label>
           <div class="row">
             <button class="btn-chip" onclick="practica.setWHTipo('traduccion'); ui.irPaso(3)">Traducción de WH</button>
-            <button class="btn-chip" onclick="practica.setWHTipo('oraciones'); ui.irPaso(3)">Práctica de oraciones (opción múltiple)</button>
+            <button class="btn-chip" onclick="practica.setWHTipo('oraciones'); ui.irPaso(3)">Oraciones (opción múltiple)</button>
           </div>
         </div>
 
@@ -82,7 +84,7 @@
       <div id="step3" class="hidden">
         <div class="setup-block">
           <label>Cantidad</label>
-          <div id="cantidadBox" class="row">
+          <div class="row">
             <button class="btn-qty" onclick="practica.setCantidad(10)">10</button>
             <button class="btn-qty" onclick="practica.setCantidad(20)">20</button>
             <button class="btn-qty" onclick="practica.setCantidad(30)">30</button>
@@ -111,11 +113,13 @@
 
       <div class="flashcard" id="pregunta">…</div>
 
+      <!-- Respuesta libre -->
       <div class="row" id="boxLibre">
         <input type="text" id="respuesta" placeholder="Tu respuesta aquí" />
         <button class="btn" id="btnVerificar" onclick="practica.verificar()">✅ Verificar</button>
       </div>
 
+      <!-- Opción múltiple -->
       <div id="boxOpciones" class="row hidden"></div>
 
       <div class="feedback" id="resultado"></div>
@@ -128,8 +132,8 @@
       </div>
 
       <!-- Resumen -->
-      <div id="resumen" class="modal hidden">
-        <div class="modal-content">
+      <div id="resumen" class="modal hidden" onclick="ui.cerrarResumen()">
+        <div class="modal-content" onclick="event.stopPropagation()">
           <button class="close-x" aria-label="Cerrar" onclick="ui.cerrarResumen()">✖</button>
           <h3>📋 Resumen de la sesión</h3>
           <p><strong>Usuario:</strong> <span id="rUsuario"></span></p>
@@ -167,8 +171,8 @@
   </main>
 
   <!-- Modal AGREGAR/EDITAR VERBO -->
-  <div id="modalVerb" class="modal hidden">
-    <div class="modal-content" role="dialog" aria-modal="true">
+  <div id="modalVerb" class="modal hidden" onclick="datos.cerrarModal()">
+    <div class="modal-content" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <button class="close-x" aria-label="Cerrar" onclick="datos.cerrarModal()">✖</button>
       <h3 id="modalVerbTitle">✏️ Editar verbo</h3>
       <div class="grid">
