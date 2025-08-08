@@ -386,7 +386,6 @@ const practica = {
       boxLibre.classList.remove("hidden");
       const r = document.getElementById("respuesta");
       r.value=""; r.focus();
-      // Desactivar verificar si vacío
       const btn = document.getElementById("btnVerificar");
       const onInput = () => btn.disabled = (r.value.trim()==="");
       r.removeEventListener("input", onInput);
@@ -486,8 +485,25 @@ const practica = {
 
 // ===== Atajos =====
 document.addEventListener("keydown", (e)=>{
+  // Cerrar modales con ESC
+  const modalEdit = document.getElementById("modalEdit");
+  if (e.key === "Escape" && modalEdit && !modalEdit.classList.contains("hidden")) {
+    datos.cerrarModal();
+    return;
+  }
+  const resumen = document.getElementById("resumen");
+  if (e.key === "Escape" && resumen && !resumen.classList.contains("hidden")) {
+    resumen.classList.add("hidden");
+    resumen.style.display = "none";
+    return;
+  }
+
   const inPlay = !document.getElementById("play").classList.contains("hidden");
-  if (!inPlay) return;
+  if (!inPlay) {
+    if (e.key === "Escape") ui.mostrar('menu'); // ESC vuelve al menú
+    return;
+  }
+
   const boxOpc = document.getElementById("boxOpciones");
   const isMCQ = !boxOpc.classList.contains("hidden");
   if (isMCQ){
