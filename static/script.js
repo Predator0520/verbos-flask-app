@@ -13,11 +13,14 @@ const ui = {
 
     if(id==="setup"){
       ui.irPaso(1);
-      // Cuando es WH, en el paso 2 mostramos el selector de sub-modo; caso contrario, el selector de tipo
       setTimeout(() => {
         const showWH = (practica.modo === 'wh');
-        document.getElementById("blockWH").classList.toggle("hidden", !showWH);
-        document.getElementById("blockTipos").classList.toggle("hidden", showWH);
+        const blockWH = document.getElementById("blockWH");
+        const blockTipos = document.getElementById("blockTipos");
+        if (blockWH && blockTipos){
+          blockWH.classList.toggle("hidden", !showWH);
+          blockTipos.classList.toggle("hidden", showWH);
+        }
       }, 0);
 
       document.getElementById("setupTitle").textContent =
@@ -139,8 +142,8 @@ const datos = {
       li.innerHTML = `
         <span class="badge ${v.categoria}">${v.categoria}</span>
         <span class="verb">
-          ${v.presente} – ${v.pasado} – ${v.continuo||'<i>no definido</i>'} –
-          ${v.traduccion} / ${v.traduccion_pasado} / ${v.traduccion_continuo||'<i>no definido</i>'}
+          ${v.presente} – ${v.pasado} – ${v.continuo || '<i>no definido</i>'} –
+          ${v.traduccion} / ${v.traduccion_pasado} / ${v.traduccion_continuo || '<i>no definido</i>'}
         </span>
         <button class="mini" type="button" data-idx="${idx}" data-action="edit">✏️</button>
         <button class="mini danger" type="button" data-idx="${idx}" data-action="del">🗑️</button>
@@ -155,7 +158,7 @@ const datos = {
         if (action === "edit") {
           const v = datos.verbos[idx];
           const nuevo = prompt(
-            "Editar: presente,pasado,traducción,trad. pasado,continuo,trad. continuo,categoria",
+            "Editar: presente,pasado,traducción,trad. pasado,continuo (opcional),trad. continuo (opcional),categoria",
             `${v.presente},${v.pasado},${v.traduccion},${v.traduccion_pasado},${v.continuo||""},${v.traduccion_continuo||""},${v.categoria}`
           );
           if (!nuevo) return;
@@ -188,13 +191,15 @@ const datos = {
     const pasado = document.getElementById("nuevoPasado").value.trim();
     const traduccion = document.getElementById("nuevaTraduccion").value.trim();
     const traduccion_pasado = document.getElementById("nuevaTraduccionPasado").value.trim();
-    const continuo = document.getElementById("nuevoContinuo").value.trim();
-    const traduccion_continuo = document.getElementById("nuevaTraduccionContinuo").value.trim();
+    const continuo = document.getElementById("nuevoContinuo").value.trim(); // ahora OPCIONAL
+    const traduccion_continuo = document.getElementById("nuevaTraduccionContinuo").value.trim(); // ahora OPCIONAL
     const categoria = document.getElementById("nuevaCategoria").value;
-    if (!presente || !pasado || !traduccion || !traduccion_pasado || !continuo || !traduccion_continuo) {
-      document.getElementById("mensajeAgregar").textContent = "⚠️ Todos los campos son obligatorios.";
+
+    if (!presente || !pasado || !traduccion || !traduccion_pasado) {
+      document.getElementById("mensajeAgregar").textContent = "⚠️ Llena: base, pasado y sus traducciones. El continuo es opcional (se autocompleta).";
       return;
     }
+
     const res = await fetch("/agregar_verbo", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
@@ -212,7 +217,7 @@ const datos = {
 // ===== PRÁCTICA =====
 const practica = {
   modo: "simple",      // simple | continuous | wh
-  whTipo: "traduccion",// 'traduccion' | 'oraciones' (solo cuando modo==='wh')
+  whTipo: "traduccion",
   usuario: "invitado",
   tipo: "todos",
   cantidad: 10,
@@ -250,25 +255,13 @@ const practica = {
     let arr = [];
     try{
       if (this.modo === "wh") {
-        if (this.whTipo === "traduccion"){
-          const res = await fetch("/preguntas_wh", {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({
-              cantidad: this.ilimitado ? "ilimitado" : this.cantidad
-            })
-          });
-          arr = await res.json();
-        } else {
-          const res = await fetch("/preguntas_wh_oraciones", {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({
-              cantidad: this.ilimitado ? "ilimitado" : this.cantidad
-            })
-          });
-          arr = await res.json();
-        }
+        const url = (this.whTipo === "oraciones") ? "/preguntas_wh_oraciones" : "/preguntas_wh";
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({cantidad: this.ilimitado ? "ilimitado" : this.cantidad})
+        });
+        arr = await res.json();
       } else {
         const res = await fetch("/preguntas", {
           method: "POST",
@@ -334,7 +327,6 @@ const practica = {
     const q = this.preguntas[this.idx % this.preguntas.length];
     document.getElementById("pregunta").textContent = q.pregunta;
 
-    // Si la pregunta trae opciones -> múltiple choice
     if (Array.isArray(q.opciones)) {
       boxLibre.classList.add("hidden");
       boxOpc.classList.remove("hidden");
@@ -353,15 +345,12 @@ const practica = {
   verificar(){
     const norm = (s) => (s ?? "").toString().trim().toLowerCase()
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
     const q = this.preguntas[this.idx % this.preguntas.length];
     const resp = norm(document.getElementById("respuesta").value || "");
     const expected = q.respuesta;
-
     let ok = false;
     if (Array.isArray(expected)) ok = expected.some(ans => norm(ans) === resp);
     else ok = norm(expected) === resp;
-
     this._postVerificacion(ok, q);
   },
 
@@ -393,7 +382,6 @@ const practica = {
     const secs = Math.floor((Date.now() - this.startTs)/1000);
     const total = this.correctas + this.incorrectas;
     const porcentaje = total ? ((this.correctas/total)*100).toFixed(2) : "0.00";
-
     const modoText = (this.modo==='wh' ? `wh/${this.whTipo}` : this.modo);
     const limiteText = this.ilimitado ? "ilimitado" : this.cantidad;
 
@@ -402,7 +390,7 @@ const practica = {
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({
         usuario: this.usuario,
-        tipo: modoText,              // guardamos modo/submodo aquí
+        tipo: modoText,
         limitado: !this.ilimitado,
         cantidad: limiteText,
         correctas: this.correctas,
