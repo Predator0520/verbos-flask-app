@@ -171,8 +171,13 @@
         <button class="btn" onclick="ui.cargarEstadisticas()">🔄 Refrescar</button>
       </div>
 
-      <canvas id="chartStats" height="160"></canvas>
-      <div id="tablaStats"></div>
+      <!-- 🚩 Caja compacta del gráfico -->
+      <div class="chart-box">
+        <canvas id="chartStats"></canvas>
+      </div>
+
+      <!-- 🚩 Caja scrolleable para la tabla -->
+      <div class="table-box" id="tablaStats"></div>
     </section>
   </main>
 
