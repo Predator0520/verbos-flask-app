@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Práctica de Verbos</title>
   <link rel="stylesheet" href="/static/style.css" />
-  <!-- Chart.js para gráficos de estadísticas -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="navy">
+<body>
   <header class="topbar">
     <h1>🎓 App de Verbos</h1>
     <button id="btn-dark" class="mode-toggle" title="Modo oscuro/claro">🌙</button>
@@ -28,43 +27,60 @@
       </div>
     </section>
 
-    <!-- Configuración de práctica -->
+    <!-- Wizard de práctica -->
     <section id="setup" class="panel hidden">
       <h2>🧠 Configurar práctica</h2>
 
-      <div class="setup-block">
-        <label>Tu nombre</label>
-        <input type="text" id="nombreUsuario" placeholder="Escribe tu nombre (o deja vacío para invitado)" />
+      <!-- Paso 1: Usuario -->
+      <div id="step1">
+        <div class="setup-block">
+          <label>Tu nombre</label>
+          <input type="text" id="nombreUsuario" placeholder="Escribe tu nombre (o deja vacío para invitado)" />
+          <div class="row">
+            <button class="btn" onclick="practica.setUsuario(); ui.irPaso(2)">Usar nombre</button>
+            <button class="btn" onclick="practica.usarInvitado(); ui.irPaso(2)">Entrar como Invitado</button>
+          </div>
+        </div>
         <div class="row">
-          <button class="btn" onclick="practica.setUsuario()">Usar nombre</button>
-          <button class="btn" onclick="practica.usarInvitado()">Entrar como Invitado</button>
+          <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
         </div>
       </div>
 
-      <div class="setup-block">
-        <label>Tipo de verbos</label>
+      <!-- Paso 2: Tipo -->
+      <div id="step2" class="hidden">
+        <div class="setup-block">
+          <label>Tipo de verbos</label>
+          <div class="row">
+            <button class="btn-chip" onclick="practica.setTipo('regular'); ui.irPaso(3)">Regulares</button>
+            <button class="btn-chip" onclick="practica.setTipo('irregular'); ui.irPaso(3)">Irregulares</button>
+            <button class="btn-chip" onclick="practica.setTipo('todos'); ui.irPaso(3)">Todos</button>
+          </div>
+        </div>
         <div class="row">
-          <button class="btn-chip" onclick="practica.setTipo('regular')">Regulares</button>
-          <button class="btn-chip" onclick="practica.setTipo('irregular')">Irregulares</button>
-          <button class="btn-chip" onclick="practica.setTipo('todos')">Todos</button>
+          <button class="btn-ghost" onclick="ui.irPaso(1)">← Atrás</button>
+          <button class="btn-ghost" onclick="ui.mostrar('menu')">Volver al menú</button>
         </div>
       </div>
 
-      <div class="setup-block">
-        <label>Cantidad</label>
-        <div id="cantidadBox" class="row">
-          <button class="btn-qty" onclick="practica.setCantidad(10)">10</button>
-          <button class="btn-qty" onclick="practica.setCantidad(20)">20</button>
-          <button class="btn-qty" onclick="practica.setCantidad(30)">30</button>
-          <button class="btn-qty" onclick="practica.setCantidad(40)">40</button>
-          <button class="btn-qty outline" onclick="practica.setIlimitado()">Ilimitado</button>
+      <!-- Paso 3: Cantidad -->
+      <div id="step3" class="hidden">
+        <div class="setup-block">
+          <label>Cantidad</label>
+          <div id="cantidadBox" class="row">
+            <button class="btn-qty" onclick="practica.setCantidad(10)">10</button>
+            <button class="btn-qty" onclick="practica.setCantidad(20)">20</button>
+            <button class="btn-qty" onclick="practica.setCantidad(30)">30</button>
+            <button class="btn-qty" onclick="practica.setCantidad(40)">40</button>
+            <button class="btn-qty outline" onclick="practica.setIlimitado()">Ilimitado</button>
+          </div>
+          <small id="cantidadActual">Selección: 10</small>
         </div>
-        <small id="cantidadActual">Selección: 10</small>
-      </div>
 
-      <div class="row">
-        <button class="btn-cta" onclick="practica.iniciar()">🚀 Iniciar práctica</button>
-        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
+        <div class="row">
+          <button class="btn-cta" onclick="practica.iniciar()">🚀 Iniciar práctica</button>
+          <button class="btn-ghost" onclick="ui.irPaso(2)">← Atrás</button>
+          <button class="btn-ghost" onclick="ui.mostrar('menu')">Volver al menú</button>
+        </div>
       </div>
     </section>
 
@@ -90,6 +106,26 @@
         <div class="pill" id="pillContador">0/0</div>
         <div class="pill" id="pillStreak">🔥 racha: 0</div>
         <button class="btn-cancel" onclick="practica.finalizar()">✖ Finalizar</button>
+        <button class="btn-ghost" onclick="ui.mostrar('menu');">← Menú</button>
+      </div>
+
+      <!-- Resumen al finalizar -->
+      <div id="resumen" class="modal hidden">
+        <div class="modal-content">
+          <h3>📋 Resumen de la sesión</h3>
+          <p><strong>Usuario:</strong> <span id="rUsuario"></span></p>
+          <p><strong>Tipo:</strong> <span id="rTipo"></span></p>
+          <p><strong>Modo:</strong> <span id="rModo"></span></p>
+          <p>✅ Correctas: <span id="rOk"></span></p>
+          <p>❌ Incorrectas: <span id="rBad"></span></p>
+          <p>🔥 Racha máxima: <span id="rStreak"></span></p>
+          <p>⏱ Tiempo: <span id="rTiempo"></span></p>
+          <div class="row">
+            <button class="btn" onclick="document.getElementById('filtroUsuario').value=practica.usuario; ui.mostrar('stats'); ui.cargarEstadisticas();">📈 Ver estadísticas</button>
+            <button class="btn-cta" onclick="ui.mostrar('setup'); ui.irPaso(2);">🔁 Reintentar</button>
+            <button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button>
+          </div>
+        </div>
       </div>
     </section>
 
