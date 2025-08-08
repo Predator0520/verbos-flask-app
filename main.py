@@ -7,19 +7,23 @@ from datetime import datetime
 app = Flask(__name__)
 
 # ===== Persistencia (Render usa /var/data) =====
-DEFAULT_DATA_DIR = "/var/data"
+DEFAULT_DATA_DIR = "/var/data"  # disco persistente en Render (ver render.yaml)
 DATA_DIR = os.environ.get("DATA_DIR", DEFAULT_DATA_DIR)
 
 def _writable(path: str) -> bool:
     try:
         os.makedirs(path, exist_ok=True)
         test = os.path.join(path, ".write_test")
-        with open(test, "w") as f: f.write("ok")
+        with open(test, "w", encoding="utf-8") as f:
+            f.write("ok")
+            f.flush()
+            os.fsync(f.fileno())
         os.remove(test)
         return True
     except Exception:
         return False
 
+# Si /var/data no es escribible, usa cwd (local dev)
 if not _writable(DATA_DIR):
     DATA_DIR = os.getcwd()
 
@@ -39,15 +43,20 @@ def _escribir_json(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+        # Garantiza persistencia incluso si el contenedor se suspende
+        f.flush()
+        os.fsync(f.fileno())
 
 def _migrar_si_falta():
+    # Si no existe el archivo en /var/data, intenta seed desde el repo (verbos.json/stats.json)
     if not os.path.exists(VERBOS_FILE):
         seed = _leer_json("verbos.json", [])
-        # Normalizar campos faltantes
+        # Normaliza campos faltantes
         for v in seed:
-            v.setdefault("traduccion_pasado", v.get("traduccion",""))
+            v.setdefault("traduccion_pasado", v.get("traduccion", ""))
             v.setdefault("continuo", "")
             v.setdefault("traduccion_continuo", v.get("traduccion_pasado", v.get("traduccion","")))
+            v.setdefault("categoria", v.get("categoria","regular"))
         _escribir_json(VERBOS_FILE, seed)
     if not os.path.exists(STATS_FILE):
         seed = _leer_json("stats.json", [])
@@ -55,18 +64,66 @@ def _migrar_si_falta():
 
 _migrar_si_falta()
 
-# ---------- Datos ----------
+# ---------- Utilidades de idioma ----------
+def _is_vowel(c): return c.lower() in "aeiou"
+
+def _gerund(base: str) -> str:
+    """
+    Construye el gerundio en inglés (forma -ing) con reglas comunes.
+    No pretende cubrir el 100%, pero sirve para autocompletar.
+    """
+    w = base.strip().lower()
+    if not w:
+        return ""
+    if w == "be":   # irregular común
+        return "being"
+    if w.endswith("ie"):
+        return w[:-2] + "ying"   # die -> dying
+    if w.endswith("e") and len(w) > 2 and w[-2] not in "aeiou":
+        # make -> making, but see -> seeing (por la vocal antes)
+        if w.endswith("ee"):
+            return w + "ing"
+        return w[:-1] + "ing"
+    # Duplicación de consonante final en patrón CVC corto (run -> running)
+    if len(w) >= 3 and (not _is_vowel(w[-1])) and _is_vowel(w[-2]) and (not _is_vowel(w[-3])):
+        # evita duplicar en 'w', 'x', 'y'
+        if w[-1] not in "wxy":
+            return w + w[-1] + "ing"
+    return w + "ing"
+
+def _autocompletar_continuo(v: dict) -> dict:
+    """
+    Asegura que exista 'continuo' y 'traduccion_continuo'.
+    continuo = "was/were <gerundio(base)>"
+    traduccion_continuo = traduccion_pasado (fallback a traduccion)
+    """
+    v.setdefault("presente","")
+    v.setdefault("traduccion","")
+    v.setdefault("traduccion_pasado", v.get("traduccion",""))
+    v.setdefault("continuo","")
+    v.setdefault("traduccion_continuo", v.get("traduccion_pasado", v.get("traduccion","")))
+    if not v["continuo"]:
+        g = _gerund(v["presente"])
+        v["continuo"] = f"was/were {g}" if g else ""
+    if not v["traduccion_continuo"]:
+        v["traduccion_continuo"] = v.get("traduccion_pasado") or v.get("traduccion") or ""
+    return v
+
+# ---------- Acceso a datos ----------
 def cargar_verbos():
     verbos = _leer_json(VERBOS_FILE, [])
-    # Compat: rellenar campos nuevos si faltan
+    # Normaliza y autocompleta para compatibilidad
+    out = []
     for v in verbos:
-        v.setdefault("traduccion_pasado", v.get("traduccion", ""))
-        v.setdefault("continuo", "")
-        v.setdefault("traduccion_continuo", v.get("traduccion_pasado", v.get("traduccion","")))
         v.setdefault("categoria", v.get("categoria","regular"))
-    return verbos
+        out.append(_autocompletar_continuo(v))
+    return out
 
-def guardar_verbos(v): _escribir_json(VERBOS_FILE, v)
+def guardar_verbos(v):
+    # Antes de guardar, autocompletar continuo/esp para evitar nulos
+    v = [_autocompletar_continuo(dict(item)) for item in v]
+    _escribir_json(VERBOS_FILE, v)
+
 def cargar_stats(): return _leer_json(STATS_FILE, [])
 def guardar_stats(s): _escribir_json(STATS_FILE, s)
 
@@ -83,25 +140,34 @@ def obtener_verbos():
 @app.route("/agregar_verbo", methods=["POST"])
 def agregar_verbo():
     data = request.json or {}
-    req = ["presente","pasado","traduccion","traduccion_pasado","continuo","traduccion_continuo","categoria"]
-    if not all(k in data and str(data[k]).strip() for k in req):
-        return jsonify({"ok": False, "msg": "Faltan campos"}), 400
+
+    # Campos mínimos obligatorios
+    req_min = ["presente","pasado","traduccion","traduccion_pasado","categoria"]
+    if not all(k in data and str(data[k]).strip() for k in req_min):
+        return jsonify({"ok": False, "msg": "Faltan campos obligatorios"}), 400
+
+    # Campos opcionales (autocompletables)
+    continuo = (data.get("continuo") or "").strip()
+    traduccion_continuo = (data.get("traduccion_continuo") or "").strip()
 
     verbos = cargar_verbos()
     if any(v["presente"].lower().strip() == data["presente"].lower().strip() for v in verbos):
         return jsonify({"ok": False, "msg": "El verbo ya existe"}), 400
 
-    verbos.append({
+    nuevo = {
         "presente": data["presente"].strip().lower(),
         "pasado": data["pasado"].strip().lower(),
         "traduccion": data["traduccion"].strip().lower(),
         "traduccion_pasado": data["traduccion_pasado"].strip().lower(),
-        "continuo": data["continuo"].strip().lower(),
-        "traduccion_continuo": data["traduccion_continuo"].strip().lower(),
+        "continuo": continuo.lower(),
+        "traduccion_continuo": traduccion_continuo.lower(),
         "categoria": data["categoria"].strip().lower()
-    })
+    }
+    nuevo = _autocompletar_continuo(nuevo)
+
+    verbos.append(nuevo)
     guardar_verbos(verbos)
-    return jsonify({"ok": True, "msg": "✅ Verbo agregado"})
+    return jsonify({"ok": True, "msg": "✅ Verbo agregado", "verbo": nuevo})
 
 @app.route("/editar_verbo", methods=["POST"])
 def editar_verbo():
@@ -115,21 +181,25 @@ def editar_verbo():
         return jsonify({"ok": False, "msg": "Índice inválido"}), 400
 
     nuevo = data["verbo"]
-    req = ["presente","pasado","traduccion","traduccion_pasado","continuo","traduccion_continuo","categoria"]
-    if not all(k in nuevo and str(nuevo[k]).strip() for k in req):
-        return jsonify({"ok": False, "msg": "Faltan campos"}), 400
+    # Permite vacío en 'continuo' y 'traduccion_continuo' (se autocompleta)
+    req_min = ["presente","pasado","traduccion","traduccion_pasado","categoria"]
+    if not all(k in nuevo and str(nuevo[k]).strip() for k in req_min):
+        return jsonify({"ok": False, "msg": "Faltan campos obligatorios"}), 400
 
-    verbos[idx] = {
+    edited = {
         "presente": nuevo["presente"].strip().lower(),
         "pasado": nuevo["pasado"].strip().lower(),
         "traduccion": nuevo["traduccion"].strip().lower(),
         "traduccion_pasado": nuevo["traduccion_pasado"].strip().lower(),
-        "continuo": nuevo["continuo"].strip().lower(),
-        "traduccion_continuo": nuevo["traduccion_continuo"].strip().lower(),
+        "continuo": (nuevo.get("continuo") or "").strip().lower(),
+        "traduccion_continuo": (nuevo.get("traduccion_continuo") or "").strip().lower(),
         "categoria": nuevo["categoria"].strip().lower()
     }
+    edited = _autocompletar_continuo(edited)
+
+    verbos[idx] = edited
     guardar_verbos(verbos)
-    return jsonify({"ok": True, "msg": "✏️ Verbo editado"})
+    return jsonify({"ok": True, "msg": "✏️ Verbo editado", "verbo": edited})
 
 @app.route("/eliminar_verbo", methods=["POST"])
 def eliminar_verbo():
@@ -147,23 +217,6 @@ def eliminar_verbo():
 # ---------- Preguntas (Simple/Past Continuous) ----------
 @app.route("/preguntas", methods=["POST"])
 def preguntas():
-    """
-    Recibe: { modo: 'simple'|'continuous', tipo: 'regular'|'irregular'|'todos', cantidad: int|'ilimitado' }
-    Simple Past (balanceado):
-      1) presente -> pasado
-      2) pasado   -> presente
-      3) presente -> español
-      4) pasado   -> español (traduccion_pasado)
-      5) español  -> presente
-      6) español  -> pasado
-    Past Continuous (balanceado):
-      1) presente -> continuo
-      2) continuo -> presente
-      3) presente -> español (base)
-      4) continuo -> español (traduccion_continuo)
-      5) español (base) -> presente
-      6) español (cont) -> continuo
-    """
     data = request.json or {}
     modo = data.get("modo", "simple")
     tipo = data.get("tipo", "todos")
@@ -181,18 +234,18 @@ def preguntas():
         n = min(len(verbos) * 3, 60) or 30
 
     preguntas = []
-    modos = ["a","b","c","d","e","f"]  # 6 slots balanceados
+    modos = ["a","b","c","d","e","f"]  # 6 variantes balanceadas
 
     for i in range(n):
         code = modos[i % 6]
         v = random.choice(verbos)
+        v = _autocompletar_continuo(v)  # asegura continuo
         t_es = v.get("traduccion","")
         t_es_past = v.get("traduccion_pasado", t_es)
         cont = v.get("continuo","")
         t_es_cont = v.get("traduccion_continuo", t_es_past or t_es)
 
         if modo == "simple":
-          # Evitar preguntas vacías por datos incompletos
             if code == "a":
                 preguntas.append({"pregunta": f"¿Cuál es el pasado de '{v['presente']}'?", "respuesta": v["pasado"]})
             elif code == "b":
@@ -205,11 +258,10 @@ def preguntas():
                 preguntas.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{t_es}'?", "respuesta": v["presente"]})
             else:
                 preguntas.append({"pregunta": f"En inglés (pasado), ¿cómo se dice '{t_es_past}'?", "respuesta": v["pasado"]})
-
         else:  # continuous
+            # Si por alguna razón cont está vacío, fuerza preguntas seguras
             if not cont or not t_es_cont:
-                # si faltan datos del continuo, saltamos esa variante
-                code = "c"  # forzar a una segura
+                code = "c"
             if code == "a":
                 preguntas.append({"pregunta": f"¿Cuál es el pasado continuo de '{v['presente']}'?", "respuesta": cont})
             elif code == "b":
@@ -225,7 +277,7 @@ def preguntas():
 
     return jsonify(preguntas)
 
-# ---------- Preguntas WH (traducción) ----------
+# ---------- WH (traducción) ----------
 @app.route("/preguntas_wh", methods=["POST"])
 def preguntas_wh():
     data = request.json or {}
@@ -256,19 +308,13 @@ def preguntas_wh():
             qs.append({"pregunta": f"Traduce al inglés: '{it['es']}'", "respuesta": it["en"]})
     return jsonify(qs)
 
-# ---------- Preguntas WH (oraciones de opción múltiple) ----------
+# ---------- WH (oraciones opción múltiple) ----------
 @app.route("/preguntas_wh_oraciones", methods=["POST"])
 def preguntas_wh_oraciones():
-    """
-    Devuelve preguntas con opciones:
-      { pregunta: str, opciones: [str,str,str,str], correcta: idx }
-    """
     data = request.json or {}
     cantidad = data.get("cantidad", "ilimitado")
 
-    # Banco básico de plantillas: cada item define la correcta y distractores.
     templates = [
-        # who/what/when/where/why/how/which/whose/how many/how much
         ("___ did you call last night?",           ["Who","What","When","Where"], 0),
         ("___ is your favorite color?",            ["What","Which","Why","How"], 0),
         ("___ did they arrive?",                   ["When","Where","Who","Why"], 0),
@@ -286,13 +332,9 @@ def preguntas_wh_oraciones():
         ("___ car is newer, the red one or the blue one?", ["Which","What","Whose","How"], 0)
     ]
 
-    # Generar preguntas
-    bank = []
-    for sent, opts, correct in templates:
-        # Variantes simples con mayúsculas/minúsculas
-        bank.append({"pregunta": sent, "opciones": opts[:], "correcta": correct, "respuesta": opts[correct]})
+    bank = [{"pregunta": s, "opciones": opts[:], "correcta": i_ok, "respuesta": opts[i_ok]}
+            for (s, opts, i_ok) in templates]
 
-    # Cantidad
     if isinstance(cantidad, int):
         n = max(1, min(int(cantidad), 200))
     else:
@@ -314,7 +356,7 @@ def guardar_resultado():
 
     registro = {
         "usuario": (data.get("usuario") or "invitado").strip(),
-        "tipo": data.get("tipo", "simple"),  # 'simple' | 'continuous' | 'wh/traduccion' | 'wh/oraciones'
+        "tipo": data.get("tipo", "simple"),  # simple | continuous | wh/traduccion | wh/oraciones
         "limitado": bool(data.get("limitado", False)),
         "cantidad": data.get("cantidad", "ilimitado"),
         "correctas": int(data.get("correctas", 0)),
