@@ -1,126 +1,165 @@
-// script.js
 let verbos = [];
-let respuestaCorrecta = "";
-let tipoVerbo = "todos";
-let usuario = "";
-let limitePreguntas = 10;
-let preguntasRespondidas = 0;
-let respuestasCorrectas = 0;
-let respuestasIncorrectas = 0;
-let practicaIlimitada = false;
+let tipoSeleccionado = "todos";
+let cantidad = 10;
+let ilimitado = false;
+let usuario = "Invitado";
+let preguntas = [];
+let indice = 0;
+let aciertos = 0;
+let errores = 0;
 
-// Cargar verbos desde archivo JSON
-fetch("/static/verbos.json")
-  .then((response) => response.json())
-  .then((data) => {
-    verbos = data;
-  });
+document.addEventListener("DOMContentLoaded", () => {
+    cargarVerbos();
+});
+
+function cargarVerbos() {
+    fetch("/obtener_verbos")
+        .then(res => res.json())
+        .then(data => verbos = data);
+}
+
+function mostrarListaVerbos() {
+    ocultarTodo();
+    document.getElementById("lista").classList.remove("oculto");
+    const lista = document.getElementById("listaVerbos");
+    lista.innerHTML = "";
+    verbos.forEach((v, i) => {
+        lista.innerHTML += `<li>${v.presente} - ${v.pasado} - ${v.traduccion} (${v.tipo}) 
+            <button onclick="editar(${i})">✏</button>
+            <button onclick="eliminar(${i})">🗑</button>
+        </li>`;
+    });
+}
+
+function mostrarAgregarVerbo() {
+    ocultarTodo();
+    document.getElementById("agregar").classList.remove("oculto");
+}
+
+function agregarVerbo() {
+    const nuevo = {
+        presente: document.getElementById("presente").value,
+        pasado: document.getElementById("pasado").value,
+        traduccion: document.getElementById("traduccion").value,
+        tipo: document.getElementById("tipoVerbo").value
+    };
+    fetch("/agregar_verbo", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(nuevo)
+    }).then(() => cargarVerbos());
+}
+
+function editar(i) {
+    const nuevo = prompt("Editar en formato: presente,pasado,traducción,tipo", 
+        `${verbos[i].presente},${verbos[i].pasado},${verbos[i].traduccion},${verbos[i].tipo}`);
+    if (nuevo) {
+        const partes = nuevo.split(",");
+        fetch("/editar_verbo", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({index: i, nuevo: {
+                presente: partes[0],
+                pasado: partes[1],
+                traduccion: partes[2],
+                tipo: partes[3]
+            }})
+        }).then(() => cargarVerbos());
+    }
+}
+
+function eliminar(i) {
+    fetch("/eliminar_verbo", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({index: i})
+    }).then(() => cargarVerbos());
+}
+
+function mostrarInicioPractica() {
+    ocultarTodo();
+    document.getElementById("practicaConfig").classList.remove("oculto");
+}
+
+function modoInvitado() {
+    usuario = "Invitado";
+}
+
+function setTipo(t) {
+    tipoSeleccionado = t;
+}
+
+function sumarCantidad() {
+    if (cantidad < 40) {
+        cantidad += 5;
+        document.getElementById("cantidad").textContent = cantidad;
+    }
+}
+
+function setIlimitado() {
+    ilimitado = true;
+    document.getElementById("cantidad").textContent = "Ilimitado";
+}
 
 function iniciarPractica() {
-  const nombreInput = document.getElementById("nombreUsuario");
-  const nombre = nombreInput.value.trim();
-  usuario = nombre !== "" ? nombre : "Invitado";
-  document.getElementById("seleccionTipo").classList.remove("hidden");
-  document.getElementById("inicioPractica").classList.add("hidden");
+    const nombreInput = document.getElementById("nombreUsuario").value;
+    if (nombreInput) usuario = nombreInput;
+
+    fetch("/pregunta", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            tipo: tipoSeleccionado,
+            cantidad: ilimitado ? "ilimitado" : cantidad
+        })
+    }).then(res => res.json())
+      .then(data => {
+        preguntas = data;
+        indice = 0;
+        aciertos = 0;
+        errores = 0;
+        mostrarPregunta();
+    });
 }
 
-function seleccionarTipo(tipo) {
-  tipoVerbo = tipo;
-  document.getElementById("seleccionCantidad").classList.remove("hidden");
-  document.getElementById("seleccionTipo").classList.add("hidden");
-}
-
-function aumentarLimite() {
-  if (limitePreguntas < 40) {
-    limitePreguntas += 5;
-    document.getElementById("contadorLimite").textContent = limitePreguntas;
-  }
-}
-
-function seleccionarCantidad() {
-  practicaIlimitada = false;
-  document.getElementById("seleccionCantidad").classList.add("hidden");
-  document.getElementById("practicaCard").classList.remove("hidden");
-  cargarPregunta();
-}
-
-function seleccionarIlimitado() {
-  practicaIlimitada = true;
-  document.getElementById("seleccionCantidad").classList.add("hidden");
-  document.getElementById("practicaCard").classList.remove("hidden");
-  cargarPregunta();
-}
-
-function cargarPregunta() {
-  const verbosFiltrados = tipoVerbo === "todos"
-    ? verbos
-    : verbos.filter((v) => v.tipo === tipoVerbo);
-  const aleatorio = verbosFiltrados[Math.floor(Math.random() * verbosFiltrados.length)];
-
-  const preguntaHTML = document.getElementById("pregunta");
-  const tipo = Math.floor(Math.random() * 3);
-
-  if (tipo === 0) {
-    preguntaHTML.textContent = `¿Cuál es el presente de '${aleatorio.pasado}'?`;
-    respuestaCorrecta = aleatorio.presente;
-  } else if (tipo === 1) {
-    preguntaHTML.textContent = `¿Cómo se traduce '${aleatorio.presente}' al español?`;
-    respuestaCorrecta = aleatorio.significado;
-  } else {
-    preguntaHTML.textContent = `¿Cuál es el pasado de '${aleatorio.presente}'?`;
-    respuestaCorrecta = aleatorio.pasado;
-  }
-
-  document.getElementById("respuesta").value = "";
-  document.getElementById("resultado").textContent = "";
+function mostrarPregunta() {
+    ocultarTodo();
+    document.getElementById("juego").classList.remove("oculto");
+    if (indice < preguntas.length || ilimitado) {
+        document.getElementById("pregunta").textContent = preguntas[indice].pregunta;
+        document.getElementById("respuesta").value = "";
+    } else {
+        finalizarPractica();
+    }
 }
 
 function verificar() {
-  const respuestaUsuario = document.getElementById("respuesta").value.trim().toLowerCase();
-
-  if (respuestaUsuario === respuestaCorrecta.toLowerCase()) {
-    document.getElementById("resultado").textContent = "✅ ¡Correcto!";
-    respuestasCorrectas++;
-  } else {
-    document.getElementById("resultado").textContent = `❌ Incorrecto. La respuesta era: ${respuestaCorrecta}`;
-    respuestasIncorrectas++;
-  }
-
-  preguntasRespondidas++;
-
-  if (!practicaIlimitada && preguntasRespondidas >= limitePreguntas) {
-    mostrarEstadisticas();
-  } else {
-    setTimeout(cargarPregunta, 2000);
-  }
+    const resp = document.getElementById("respuesta").value.trim().toLowerCase();
+    if (resp === preguntas[indice].respuesta.toLowerCase()) {
+        aciertos++;
+    } else {
+        errores++;
+    }
+    indice++;
+    mostrarPregunta();
 }
 
 function finalizarPractica() {
-  mostrarEstadisticas();
+    ocultarTodo();
+    document.getElementById("estadisticas").classList.remove("oculto");
+    let texto = `Usuario: ${usuario} - Correctas: ${aciertos}, Incorrectas: ${errores}`;
+    if (!ilimitado) {
+        const total = aciertos + errores;
+        const porcentaje = ((aciertos / total) * 100).toFixed(2);
+        texto += ` - Aciertos: ${porcentaje}%`;
+    }
+    document.getElementById("stats").textContent = texto;
 }
 
-function mostrarEstadisticas() {
-  document.getElementById("practicaCard").classList.add("hidden");
-  document.getElementById("estadisticas").classList.remove("hidden");
-  const total = respuestasCorrectas + respuestasIncorrectas;
-  const porcentaje = total > 0 ? Math.round((respuestasCorrectas / total) * 100) : 0;
-
-  document.getElementById("resumenUsuario").textContent = usuario;
-  document.getElementById("resumenCorrectas").textContent = respuestasCorrectas;
-  document.getElementById("resumenIncorrectas").textContent = respuestasIncorrectas;
-  document.getElementById("resumenPorcentaje").textContent = porcentaje + "%";
+function volverMenu() {
+    ocultarTodo();
 }
 
-function cerrarEstadisticas() {
-  document.getElementById("estadisticas").classList.add("hidden");
-  preguntasRespondidas = 0;
-  respuestasCorrectas = 0;
-  respuestasIncorrectas = 0;
-  document.getElementById("inicioPractica").classList.remove("hidden");
+function ocultarTodo() {
+    document.querySelectorAll("section").forEach(sec => sec.classList.add("oculto"));
 }
-
-function toggleModoOscuro() {
-  document.body.classList.toggle("modo-oscuro");
-}
-
-document.getElementById("modoOscuroSwitch").addEventListener("change", toggleModoOscuro);
