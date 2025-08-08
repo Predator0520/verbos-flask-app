@@ -30,7 +30,7 @@
   </nav>
 
   <main>
-    <!-- Menú (pantalla principal con tarjetas, se mantiene) -->
+    <!-- Menú (pantalla principal con tarjetas) -->
     <section id="menu" class="panel center">
       <div class="cards">
         <button class="card btn-primary" onclick="practica.setModo('simple'); ui.mostrar('setup')">🟢 Práctica Simple Past</button>
@@ -63,7 +63,6 @@
 
       <!-- Paso 2: Tipo o WH submodos -->
       <div id="step2" class="hidden">
-        <!-- Tipos para simple/continuous -->
         <div id="blockTipos" class="setup-block">
           <label>Tipo de verbos</label>
           <div class="row">
@@ -73,7 +72,6 @@
           </div>
         </div>
 
-        <!-- Submodos para WH -->
         <div id="blockWH" class="setup-block hidden">
           <label>Modo WH</label>
           <div class="row">
@@ -196,6 +194,30 @@
       </div>
     </section>
   </main>
+
+  <!-- Modal AGREGAR/EDITAR VERBO -->
+  <div id="modalVerb" class="modal hidden" onclick="datos.cerrarModal()">
+    <div class="modal-content" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
+      <button class="close-x" aria-label="Cerrar" onclick="datos.cerrarModal()">✖</button>
+      <h3 id="modalVerbTitle">➕ Agregar verbo</h3>
+      <div class="grid">
+        <input type="text" id="editPresente" placeholder="Base form (eat)" />
+        <input type="text" id="editPasado" placeholder="Simple past (ate)" />
+        <input type="text" id="editTraduccion" placeholder="Traducción base (comer)" />
+        <input type="text" id="editTraduccionPasado" placeholder="Traducción del pasado (comí) — opcional" />
+        <input type="text" id="editContinuo" placeholder="Past continuous (was / were eating) — opcional" />
+        <input type="text" id="editTraduccionContinuo" placeholder="Traducción del past continuous — opcional" />
+        <select id="editCategoria">
+          <option value="regular">Regular</option>
+          <option value="irregular">Irregular</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn-cta" onclick="datos.guardarModal()">💾 Guardar</button>
+        <button class="btn-cancel" onclick="datos.cerrarModal()">✖ Cancelar</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/script.js"></script>
 </body>
