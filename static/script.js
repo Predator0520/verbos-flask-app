@@ -255,9 +255,11 @@ const practica = {
       })
     });
 
-    // Volver al menú y abrir stats
+    // Ir a stats filtrando por el usuario actual
+    document.getElementById("filtroUsuario").value = this.usuario;
     ui.mostrar("stats");
     ui.cargarEstadisticas();
+
     // re-habilitar ver verbos
     document.getElementById("btn-ver-verbos").disabled = false;
   },
