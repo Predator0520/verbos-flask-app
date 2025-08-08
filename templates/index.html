@@ -14,7 +14,7 @@
   </header>
 
   <main>
-    <!-- Menú principal -->
+    <!-- Menú -->
     <section id="menu" class="panel center">
       <div class="cards">
         <button class="card btn-primary" onclick="ui.mostrar('setup')">🎯 Práctica</button>
@@ -22,15 +22,13 @@
         <button class="card btn-purple" onclick="ui.mostrar('agregar')">➕ Agregar Verbo</button>
       </div>
       <div class="bottom-cta">
-        <button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarEstadisticas();">📈 Estadísticas</button>
+        <button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
       </div>
     </section>
 
-    <!-- Wizard de práctica -->
+    <!-- Wizard práctica -->
     <section id="setup" class="panel hidden">
       <h2>🧠 Configurar práctica</h2>
-
-      <!-- Paso 1 -->
       <div id="step1">
         <div class="setup-block">
           <label>Tu nombre</label>
@@ -40,12 +38,8 @@
             <button class="btn" onclick="practica.usarInvitado(); ui.irPaso(2)">Entrar como Invitado</button>
           </div>
         </div>
-        <div class="row">
-          <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
-        </div>
+        <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button></div>
       </div>
-
-      <!-- Paso 2 -->
       <div id="step2" class="hidden">
         <div class="setup-block">
           <label>Tipo de verbos</label>
@@ -60,8 +54,6 @@
           <button class="btn-ghost" onclick="ui.mostrar('menu')">Volver al menú</button>
         </div>
       </div>
-
-      <!-- Paso 3 -->
       <div id="step3" class="hidden">
         <div class="setup-block">
           <label>Cantidad</label>
@@ -74,7 +66,6 @@
           </div>
           <small id="cantidadActual">Selección: 10</small>
         </div>
-
         <div class="row">
           <button class="btn-cta" onclick="practica.iniciar()">🚀 Iniciar práctica</button>
           <button class="btn-ghost" onclick="ui.irPaso(2)">← Atrás</button>
@@ -83,7 +74,7 @@
       </div>
     </section>
 
-    <!-- Ejecución -->
+    <!-- Juego -->
     <section id="play" class="panel hidden">
       <div class="header-row">
         <div class="pill" id="pillUsuario">👤 Invitado</div>
@@ -120,7 +111,7 @@
           <p>🔥 Racha máxima: <span id="rStreak"></span></p>
           <p>⏱ Tiempo: <span id="rTiempo"></span></p>
           <div class="row">
-            <button class="btn" onclick="document.getElementById('filtroUsuario').value=practica.usuario; ui.mostrar('stats'); ui.cargarEstadisticas();">📈 Ver estadísticas</button>
+            <button class="btn" onclick="document.getElementById('filtroUsuario').value=practica.usuario; ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Ver estadísticas</button>
             <button class="btn-cta" onclick="ui.mostrar('setup'); ui.irPaso(2);">🔁 Reintentar</button>
             <button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button>
           </div>
@@ -133,9 +124,7 @@
       <h2>📝 Lista de Verbos</h2>
       <div class="hint">*Este listado se oculta cuando entras a práctica.</div>
       <ul id="listaVerbos"></ul>
-      <div class="row">
-        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
-      </div>
+      <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button></div>
     </section>
 
     <!-- Agregar -->
@@ -145,6 +134,7 @@
         <input type="text" id="nuevoPresente" placeholder="Presente (base form)" />
         <input type="text" id="nuevoPasado" placeholder="Simple past" />
         <input type="text" id="nuevaTraduccion" placeholder="Traducción (ES)" />
+        <input type="text" id="nuevaTraduccionPasado" placeholder="Traducción del pasado (ES)" />
         <select id="nuevaCategoria">
           <option value="regular">Regular</option>
           <option value="irregular">Irregular</option>
@@ -161,23 +151,27 @@
     <section id="stats" class="panel hidden">
       <div class="row" style="justify-content:space-between">
         <h2>📈 Estadísticas</h2>
-        <div class="row">
-          <button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button>
-        </div>
+        <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button></div>
       </div>
 
-      <div class="row">
-        <input type="text" id="filtroUsuario" placeholder="Filtrar por usuario (opcional)" />
-        <button class="btn" onclick="ui.cargarEstadisticas()">🔄 Refrescar</button>
-      </div>
+      <!-- Sidebar usuarios + contenido -->
+      <div class="stats-layout">
+        <aside class="users-panel">
+          <div class="users-header">
+            <div class="row">
+              <input type="text" id="filtroUsuario" placeholder="Filtrar por usuario (opcional)" />
+              <button class="btn" onclick="ui.cargarEstadisticas()">🔎</button>
+            </div>
+            <button class="btn" style="width:100%" onclick="ui.cargarUsuarios()">🔄 Actualizar lista</button>
+          </div>
+          <ul id="listaUsuarios" class="users-list"></ul>
+        </aside>
 
-      <!-- 🚩 Caja compacta del gráfico -->
-      <div class="chart-box">
-        <canvas id="chartStats"></canvas>
+        <section class="stats-content">
+          <div class="chart-box"><canvas id="chartStats"></canvas></div>
+          <div class="table-box" id="tablaStats"></div>
+        </section>
       </div>
-
-      <!-- 🚩 Caja scrolleable para la tabla -->
-      <div class="table-box" id="tablaStats"></div>
     </section>
   </main>
 
