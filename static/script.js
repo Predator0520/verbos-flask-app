@@ -1,20 +1,16 @@
 // ===== UI =====
 const ui = {
   mostrar: (id) => {
-    // Oculta modal de resumen por si quedó abierto de una sesión anterior (hard hide)
     const modal = document.getElementById("resumen");
     if (modal) { modal.classList.add("hidden"); modal.style.display = "none"; }
 
-    // Deshabilitar Ver Verbos durante setup o juego
     document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
 
-    // Mostrar sección
     ["menu","setup","play","lista","agregar","stats"].forEach(sec => {
       document.getElementById(sec).classList.add("hidden");
     });
     document.getElementById(id).classList.remove("hidden");
 
-    // Reiniciar wizard al entrar a setup
     if(id==="setup") ui.irPaso(1);
   },
   irPaso: (n) => {
@@ -34,7 +30,7 @@ const ui = {
 
       const tabla = document.getElementById("tablaStats");
       if (!data.length) {
-        tabla.innerHTML = "<p>No hay resultados aún.</p>";
+        tabla.innerHTML = "<div style='padding:10px'>No hay resultados aún.</div>";
       } else {
         tabla.innerHTML = `
           <table class="tabla">
@@ -60,6 +56,7 @@ const ui = {
         `;
       }
 
+      // Gráfico compacto dentro de .chart-box (altura controlada por CSS)
       const ctx = document.getElementById("chartStats");
       if (window._chart) window._chart.destroy();
       window._chart = new Chart(ctx, {
@@ -71,10 +68,17 @@ const ui = {
             { label: "Incorrectas", data: data.map(r => r.incorrectas) }
           ]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false, // usamos el alto del contenedor
+          plugins: { legend: { position: "top" } },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision:0 } }
+          }
+        }
       });
     }catch(e){
-      document.getElementById("tablaStats").innerHTML = "<p>Error cargando estadísticas.</p>";
+      document.getElementById("tablaStats").innerHTML = "<div style='padding:10px'>Error cargando estadísticas.</div>";
     }
   }
 };
@@ -190,7 +194,6 @@ const practica = {
   },
 
   async iniciar(){
-    // Oculta modal SIEMPRE al iniciar una nueva práctica (hard hide)
     const modal = document.getElementById("resumen");
     if (modal) { modal.classList.add("hidden"); modal.style.display = "none"; }
 
@@ -270,12 +273,10 @@ const practica = {
     const total = this.correctas + this.incorrectas;
     const porcentaje = total ? ((this.correctas/total)*100).toFixed(2) : "0.00";
 
-    // Modo (fácil/medio/difícil)
     let modo = "fácil";
     if (this.ilimitado || (!this.ilimitado && this.cantidad > 45)) modo = "difícil";
     else if (!this.ilimitado && (this.cantidad === 30 || this.cantidad === 40)) modo = "medio";
 
-    // Guardar (async)
     fetch("/guardar_resultado", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
@@ -291,7 +292,6 @@ const practica = {
       })
     });
 
-    // Resumen (hard show)
     document.getElementById("rUsuario").textContent = this.usuario;
     document.getElementById("rTipo").textContent = this.tipo;
     document.getElementById("rModo").textContent = modo;
