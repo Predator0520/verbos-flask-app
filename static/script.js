@@ -191,4 +191,108 @@ const practica = {
 
     // UI
     document.getElementById("pillUsuario").textContent = `👤 ${this.usuario}`;
-    document.getElementById("pillTipo
+    document.getElementById("pillTipo").textContent = `Tipo: ${this.tipo}`;
+    document.getElementById("pillLimite").textContent = `Límite: ${this.ilimitado ? "Ilimitado" : this.cantidad}`;
+    document.getElementById("pillContador").textContent = `0/${this.ilimitado ? "∞" : this.preguntas.length}`;
+    document.getElementById("pillStreak").textContent = `🔥 racha: 0`;
+    document.getElementById("resultado").textContent = "";
+
+    ui.mostrar("play");
+    this._pintarPregunta();
+    // ocultar listado mientras practicas
+    document.getElementById("btn-ver-verbos").disabled = true;
+  },
+
+  _pintarPregunta() {
+    if (!this.ilimitado && this.idx >= this.preguntas.length) {
+      this.finalizar();
+      return;
+    }
+    const q = this.preguntas[this.idx % this.preguntas.length]; // recicla en ilimitado
+    document.getElementById("pregunta").textContent = q.pregunta;
+    document.getElementById("respuesta").value = "";
+    document.getElementById("pillContador").textContent =
+      `${Math.min(this.idx, this.preguntas.length)}/${this.ilimitado ? "∞" : this.preguntas.length}`;
+  },
+
+  verificar() {
+    const q = this.preguntas[this.idx % this.preguntas.length];
+    const resp = (document.getElementById("respuesta").value || "").trim().toLowerCase();
+    const ok = resp === q.respuesta.toLowerCase();
+    const out = document.getElementById("resultado");
+
+    if (ok) {
+      this.correctas++; this.streak++; this.streakMax = Math.max(this.streakMax, this.streak);
+      out.textContent = "✅ ¡Correcto!";
+      if (this.streak && this.streak % 5 === 0) {
+        out.textContent += ` 🔥 Racha de ${this.streak}!`;
+      }
+    } else {
+      this.incorrectas++; this.streak = 0;
+      out.textContent = `❌ Incorrecto. Era: ${q.respuesta}`;
+    }
+    this.idx++;
+    this._pintarPregunta();
+  },
+
+  finalizar() {
+    this._stopTimer();
+    const total = this.correctas + this.incorrectas;
+    const porcentaje = total ? ((this.correctas / total) * 100).toFixed(2) : "0.00";
+    // Guardar resultado
+    fetch("/guardar_resultado", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        usuario: this.usuario,
+        tipo: this.tipo,
+        limitado: !this.ilimitado,
+        cantidad: this.ilimitado ? "ilimitado" : this.cantidad,
+        correctas: this.correctas,
+        incorrectas: this.incorrectas,
+        streak_max: this.streakMax,
+        duracion_segundos: Math.floor((Date.now() - this.startTs)/1000)
+      })
+    });
+
+    // Volver al menú y abrir stats
+    ui.mostrar("stats");
+    ui.cargarEstadisticas();
+    // re-habilitar ver verbos
+    document.getElementById("btn-ver-verbos").disabled = false;
+  },
+
+  _startTimer() {
+    const pill = document.getElementById("pillTimer");
+    if (this.timerInt) clearInterval(this.timerInt);
+    this.timerInt = setInterval(() => {
+      const secs = Math.floor((Date.now() - this.startTs)/1000);
+      const mm = String(Math.floor(secs/60)).padStart(2,"0");
+      const ss = String(secs%60).padStart(2,"0");
+      pill.textContent = `⏱ ${mm}:${ss}`;
+    }, 1000);
+  },
+  _stopTimer() {
+    if (this.timerInt) clearInterval(this.timerInt);
+    this.timerInt = null;
+  }
+};
+
+
+// ===== Modo oscuro persistente =====
+(function initDarkMode(){
+  const btn = document.getElementById("btn-dark");
+  const apply = (dark) => {
+    if (dark) document.body.classList.add("dark");
+    else document.body.classList.remove("dark");
+    localStorage.setItem("dark", dark ? "1" : "0");
+  };
+  const saved = localStorage.getItem("dark") === "1";
+  apply(saved);
+  btn.addEventListener("click", () => {
+    apply(!document.body.classList.contains("dark"));
+  });
+})();
+
+// Inicio
+ui.mostrar("menu");
