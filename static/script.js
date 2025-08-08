@@ -243,11 +243,10 @@ const practica = {
     const total = this.correctas + this.incorrectas;
     const porcentaje = total ? ((this.correctas/total)*100).toFixed(2) : "0.00";
 
-    // Clasificador de modo (fácil/medio/difícil)
+    // Modo (fácil/medio/difícil)
     let modo = "fácil";
     if (this.ilimitado || (!this.ilimitado && this.cantidad > 45)) modo = "difícil";
     else if (!this.ilimitado && (this.cantidad === 30 || this.cantidad === 40)) modo = "medio";
-    // (10 o 20 -> fácil)
 
     // Guardar (async)
     fetch("/guardar_resultado", {
