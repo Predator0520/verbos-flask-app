@@ -155,3 +155,16 @@ input[type="text"], select{
 .dark .chart-box, .dark .table-box, .dark .users-panel{border-color:#2b3347}
 .dark .users-list li:hover{background:#0b1224}
 .dark .users-list li.active{background:#102038;border-color:#274060}
+/* Opción múltiple (WH oraciones) */
+.mc-option{
+  background:#e0ecff;
+  border:none;
+  border-radius:10px;
+  padding:10px 14px;
+  font-weight:800;
+  cursor:pointer;
+  margin:4px;
+}
+.mc-option:hover{ transform: translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.15) }
+.dark .mc-option{ background:#1b2742; color:#f5f7ff; }
+
