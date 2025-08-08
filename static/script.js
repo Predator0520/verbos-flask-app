@@ -1,11 +1,20 @@
 // ===== UI =====
 const ui = {
   mostrar: (id) => {
+    // Oculta modal de resumen por si quedó abierto de una sesión anterior
+    const modal = document.getElementById("resumen");
+    if (modal) modal.classList.add("hidden");
+
+    // Deshabilitar Ver Verbos durante setup o juego
     document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
+
+    // Mostrar sección
     ["menu","setup","play","lista","agregar","stats"].forEach(sec => {
       document.getElementById(sec).classList.add("hidden");
     });
     document.getElementById(id).classList.remove("hidden");
+
+    // Reiniciar wizard al entrar a setup
     if(id==="setup") ui.irPaso(1);
   },
   irPaso: (n) => {
@@ -181,15 +190,33 @@ const practica = {
   },
 
   async iniciar(){
-    const res = await fetch("/preguntas", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({
-        tipo: this.tipo,
-        cantidad: this.ilimitado ? "ilimitado" : this.cantidad
-      })
-    });
-    this.preguntas = await res.json();
+    // Oculta el modal SIEMPRE al iniciar una nueva práctica
+    const modal = document.getElementById("resumen");
+    if (modal) modal.classList.add("hidden");
+
+    let arr = [];
+    try{
+      const res = await fetch("/preguntas", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          tipo: this.tipo,
+          cantidad: this.ilimitado ? "ilimitado" : this.cantidad
+        })
+      });
+      arr = await res.json();
+    }catch(e){
+      alert("No se pudieron cargar las preguntas. Intenta de nuevo.");
+      return;
+    }
+
+    if (!Array.isArray(arr) || arr.length === 0){
+      alert("No hay preguntas para ese tipo de verbo. Agrega verbos o cambia el filtro.");
+      ui.mostrar("setup"); ui.irPaso(2);
+      return;
+    }
+
+    this.preguntas = arr;
     this.idx = 0; this.correctas = 0; this.incorrectas = 0;
     this.streak = 0; this.streakMax = 0;
     this.startTs = Date.now();
@@ -208,6 +235,7 @@ const practica = {
 
   _pintarPregunta(){
     if (!this.ilimitado && this.idx >= this.preguntas.length) {
+      // Ya no mostramos resumen aquí: sólo si termina por completar todas.
       this.finalizar();
       return;
     }
@@ -264,7 +292,7 @@ const practica = {
       })
     });
 
-    // Resumen
+    // Completar resumen
     document.getElementById("rUsuario").textContent = this.usuario;
     document.getElementById("rTipo").textContent = this.tipo;
     document.getElementById("rModo").textContent = modo;
@@ -272,9 +300,11 @@ const practica = {
     document.getElementById("rBad").textContent = this.incorrectas;
     document.getElementById("rStreak").textContent = this.streakMax;
     document.getElementById("rTiempo").textContent = `${Math.floor(secs/60)}m ${secs%60}s (${porcentaje}%)`;
+
+    // Mostrar modal SÓLO ahora
     document.getElementById("resumen").classList.remove("hidden");
 
-    // re-habilitar “Ver Verbos”
+    // Permitir ver verbos otra vez
     document.getElementById("btn-ver-verbos").disabled = false;
   },
 
