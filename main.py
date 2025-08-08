@@ -6,9 +6,25 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# ===== Persistencia en volumen Render =====
-DATA_DIR = "/data"
-os.makedirs(DATA_DIR, exist_ok=True)
+# ===== Persistencia =====
+# Usamos /var/data (volumen de Render). Si no existe o no es escribible, caemos al directorio actual.
+DEFAULT_DATA_DIR = "/var/data"
+DATA_DIR = os.environ.get("DATA_DIR", DEFAULT_DATA_DIR)
+
+def _writable(path: str) -> bool:
+    try:
+        testfile = os.path.join(path, ".write_test")
+        os.makedirs(path, exist_ok=True)
+        with open(testfile, "w") as f:
+            f.write("ok")
+        os.remove(testfile)
+        return True
+    except Exception:
+        return False
+
+if not _writable(DATA_DIR):
+    # Fallback para que el deploy no falle si el volumen aún no está listo.
+    DATA_DIR = os.getcwd()
 
 VERBOS_FILE = os.path.join(DATA_DIR, "verbos.json")
 STATS_FILE  = os.path.join(DATA_DIR, "stats.json")
@@ -23,11 +39,12 @@ def _leer_json(path, default):
     return default
 
 def _escribir_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def _migrar_si_falta():
-    # Si /data está vacío, copia semillas del repo (si existen)
+    # Si el archivo del volumen no existe, intenta copiar semillas del repo
     if not os.path.exists(VERBOS_FILE):
         seed = _leer_json("verbos.json", [])
         _escribir_json(VERBOS_FILE, seed)
@@ -37,6 +54,7 @@ def _migrar_si_falta():
 
 _migrar_si_falta()
 
+# ---------- Datos ----------
 def cargar_verbos(): return _leer_json(VERBOS_FILE, [])
 def guardar_verbos(v): _escribir_json(VERBOS_FILE, v)
 def cargar_stats(): return _leer_json(STATS_FILE, [])
@@ -67,14 +85,14 @@ def agregar_verbo():
         "presente": data["presente"].strip().lower(),
         "pasado": data["pasado"].strip().lower(),
         "traduccion": data["traduccion"].strip().lower(),
-        "categoria": data["categoria"].strip().lower()  # regular | irregular
+        "categoria": data["categoria"].strip().lower()
     })
     guardar_verbos(verbos)
     return jsonify({"ok": True, "msg": "✅ Verbo agregado"})
 
 @app.route("/editar_verbo", methods=["POST"])
 def editar_verbo():
-    data = request.json or {}  # {index, verbo:{...}}
+    data = request.json or {}
     if "index" not in data or "verbo" not in data:
         return jsonify({"ok": False, "msg": "Datos inválidos"}), 400
 
@@ -99,7 +117,7 @@ def editar_verbo():
 
 @app.route("/eliminar_verbo", methods=["POST"])
 def eliminar_verbo():
-    data = request.json or {}  # {index}
+    data = request.json or {}
     if "index" not in data:
         return jsonify({"ok": False, "msg": "Datos inválidos"}), 400
     verbos = cargar_verbos()
@@ -113,10 +131,6 @@ def eliminar_verbo():
 # ---------- Preguntas ----------
 @app.route("/preguntas", methods=["POST"])
 def preguntas():
-    """
-    Recibe: { tipo: 'regular'|'irregular'|'todos', cantidad: 10|20|30|40|'ilimitado' }
-    Devuelve: [ {pregunta, respuesta}, ... ]
-    """
     data = request.json or {}
     tipo = data.get("tipo", "todos")
     cantidad = data.get("cantidad", "ilimitado")
@@ -124,38 +138,30 @@ def preguntas():
     verbos = cargar_verbos()
     if tipo != "todos":
         verbos = [v for v in verbos if v.get("categoria") == tipo]
-
     if not verbos:
         return jsonify([])
 
-    def pregunta_de(v, modo):
+    def mkq(v, modo):
         if modo == "presente":
-            return {"pregunta": f"¿Cuál es el presente de '{v['pasado']}'?",
-                    "respuesta": v["presente"]}
+            return {"pregunta": f"¿Cuál es el presente de '{v['pasado']}'?", "respuesta": v["presente"]}
         if modo == "pasado":
-            return {"pregunta": f"¿Cuál es el pasado de '{v['presente']}'?",
-                    "respuesta": v["pasado"]}
-        return {"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?",
-                "respuesta": v["traduccion"]}
+            return {"pregunta": f"¿Cuál es el pasado de '{v['presente']}'?", "respuesta": v["pasado"]}
+        return {"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?", "respuesta": v["traduccion"]}
 
     modos = ["presente","pasado","traduccion"]
     preguntas = []
 
-    # Limitado: genera N preguntas exactas (con repetición si hace falta)
     if isinstance(cantidad, int):
-        n = max(1, min(int(cantidad), 200))  # tope seguridad
+        n = max(1, min(int(cantidad), 200))
         for _ in range(n):
-            v = random.choice(verbos)
-            m = random.choice(modos)
-            preguntas.append(pregunta_de(v, m))
+            v = random.choice(verbos); m = random.choice(modos)
+            preguntas.append(mkq(v, m))
     else:
-        # Ilimitado: devuelve un pool para reciclar (máx 50)
         pool = verbos[:]
         random.shuffle(pool)
         pool = pool[:50] if len(pool) > 50 else pool
         for v in pool:
-            m = random.choice(modos)
-            preguntas.append(pregunta_de(v, m))
+            preguntas.append(mkq(v, random.choice(modos)))
 
     return jsonify(preguntas)
 
@@ -163,7 +169,7 @@ def preguntas():
 @app.route("/guardar_resultado", methods=["POST"])
 def guardar_resultado():
     data = request.json or {}
-    req = ["usuario", "tipo", "limitado", "correctas", "incorrectas", "duracion_segundos"]
+    req = ["usuario","tipo","limitado","correctas","incorrectas","duracion_segundos"]
     if not all(k in data for k in req):
         return jsonify({"ok": False, "msg": "Datos incompletos"}), 400
 
@@ -192,8 +198,7 @@ def estadisticas():
     usuario = (request.args.get("usuario") or "").strip()
     stats = cargar_stats()
     if usuario:
-        stats = [s for s in stats if s.get("usuario", "").lower() == usuario.lower()]
-    # ordena por fecha (desc)
+        stats = [s for s in stats if s.get("usuario","").lower() == usuario.lower()]
     stats.sort(key=lambda x: x.get("fecha",""), reverse=True)
     return jsonify(stats)
 
