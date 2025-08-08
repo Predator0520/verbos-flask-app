@@ -117,8 +117,27 @@ const ui = {
       console.error(e);
       document.getElementById("tablaStats").innerHTML = "<div style='padding:10px'>Error cargando estadísticas.</div>";
     }
+  },
+
+  // ===== Dropdown del Menú en la barra =====
+  toggleMenuDropdown: (open=null) => {
+    const dd = document.getElementById("menuDropdown");
+    const isOpen = !dd.classList.contains("hidden");
+    const next = (open===null ? !isOpen : !!open);
+    dd.classList.toggle("hidden", !next);
   }
 };
+
+// Cerrar dropdown al hacer click fuera
+document.addEventListener("click", (e)=>{
+  const btn = document.getElementById("btn-menu");
+  const dd  = document.getElementById("menuDropdown");
+  if (!btn || !dd) return;
+  if (dd.classList.contains("hidden")) return;
+  if (!btn.contains(e.target) && !dd.contains(e.target)){
+    dd.classList.add("hidden");
+  }
+});
 
 // ===== VERBOS (CRUD + modal) =====
 const datos = {
@@ -203,7 +222,6 @@ const datos = {
     };
     if (!payload.presente || !payload.pasado || !payload.traduccion || !payload.traduccion_pasado){
       alert("Completa base, pasado y sus traducciones. (El continuo puede quedar vacío)");
-      // si quedó vacío, que vaya como string vacío (el backend actual lo tolera por _migrar_si_falta)
       payload.continuo = payload.continuo || "";
       payload.traduccion_continuo = payload.traduccion_continuo || payload.traduccion_pasado || payload.traduccion;
     }
@@ -277,7 +295,6 @@ const practica = {
           const allAnswers = arr.map(x=>x.respuesta);
           arr = arr.map(q=>{
             const correct = q.respuesta;
-            // 3 distractores distintos al correcto
             const pool = allAnswers.filter(a=>a!==correct);
             const mix = [];
             while(mix.length<3 && pool.length){
@@ -429,13 +446,38 @@ document.addEventListener("keydown",(e)=>{
   }
 });
 
-// Dark mode
+// Dark mode con icono dinámico
 (function(){
   const btn=document.getElementById("btn-dark");
-  const apply=(dark)=>{ document.body.classList.toggle("dark",dark); localStorage.setItem("dark", dark?"1":"0"); };
-  apply(localStorage.getItem("dark")==="1");
+  const apply=(dark)=>{
+    document.body.classList.toggle("dark",dark);
+    localStorage.setItem("dark", dark?"1":"0");
+    btn.textContent = dark ? "🌙" : "☀️";
+    btn.setAttribute("aria-label", dark ? "Cambiar a claro" : "Cambiar a oscuro");
+    btn.title = dark ? "Modo oscuro" : "Modo claro";
+  };
+  // estado inicial
+  const initialDark = (localStorage.getItem("dark")==="1");
+  apply(initialDark);
   btn.onclick=()=>apply(!document.body.classList.contains("dark"));
 })();
-
+ 
 // Inicio
 ui.mostrar("menu");
+
+// Acciones desde el dropdown del Menú
+window._goSimple = ()=>{
+  practica.setModo('simple');
+  ui.toggleMenuDropdown(false);
+  ui.mostrar('setup');
+};
+window._goContinuous = ()=>{
+  practica.setModo('continuous');
+  ui.toggleMenuDropdown(false);
+  ui.mostrar('setup');
+};
+window._goWH = ()=>{
+  practica.setModo('wh');
+  ui.toggleMenuDropdown(false);
+  ui.mostrar('setup');
+};
