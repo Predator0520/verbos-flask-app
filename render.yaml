@@ -4,3 +4,8 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn main:app
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+
