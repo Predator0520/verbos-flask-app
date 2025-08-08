@@ -10,19 +10,27 @@
 <body>
   <header class="topbar">
     <h1>🎓 App de Verbos</h1>
-    <button id="btn-dark" class="mode-toggle" title="Modo oscuro/claro">🌙</button>
+    <button id="btn-dark" class="mode-toggle" title="Modo claro/oscuro" aria-label="Cambiar tema">☀️</button>
   </header>
 
   <!-- Barra fija de navegación -->
   <nav class="global-nav">
-    <button onclick="ui.mostrar('menu')">🏠 Menú</button>
-    <button onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Verbos</button>
+    <div class="dropdown">
+      <button id="btn-menu" onclick="ui.toggleMenuDropdown()" aria-haspopup="true" aria-expanded="false">📂 Menú ▾</button>
+      <div id="menuDropdown" class="dropdown-menu hidden" role="menu" aria-labelledby="btn-menu">
+        <button class="menu-item" onclick="_goSimple()">🟢 Práctica Simple Past</button>
+        <button class="menu-item" onclick="_goContinuous()">🔵 Práctica Past Continuous</button>
+        <button class="menu-item" onclick="_goWH()">🟣 Práctica WH Questions</button>
+      </div>
+    </div>
+
+    <button onclick="ui.mostrar('lista'); datos.listarVerbos();" id="btn-ver-verbos">📋 Verbos</button>
     <button onclick="datos.abrirModalAgregar()">➕ Agregar</button>
     <button onclick="ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
   </nav>
 
   <main>
-    <!-- Menú -->
+    <!-- Menú (pantalla principal con tarjetas, se mantiene) -->
     <section id="menu" class="panel center">
       <div class="cards">
         <button class="card btn-primary" onclick="practica.setModo('simple'); ui.mostrar('setup')">🟢 Práctica Simple Past</button>
@@ -40,7 +48,7 @@
     <section id="setup" class="panel hidden">
       <h2 id="setupTitle">🧠 Configurar práctica</h2>
 
-      <!-- Paso 1 -->
+      <!-- Paso 1: Usuario -->
       <div id="step1">
         <div class="setup-block">
           <label>Tu nombre</label>
@@ -53,7 +61,7 @@
         <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button></div>
       </div>
 
-      <!-- Paso 2 -->
+      <!-- Paso 2: Tipo o WH submodos -->
       <div id="step2" class="hidden">
         <!-- Tipos para simple/continuous -->
         <div id="blockTipos" class="setup-block">
@@ -80,7 +88,7 @@
         </div>
       </div>
 
-      <!-- Paso 3 -->
+      <!-- Paso 3: Cantidad e iniciar -->
       <div id="step3" class="hidden">
         <div class="setup-block">
           <label>Cantidad</label>
@@ -144,9 +152,10 @@
           <p>🔥 Racha máxima: <span id="rStreak"></span></p>
           <p>⏱ Tiempo: <span id="rTiempo"></span></p>
           <div class="row">
-            <button class="btn" onclick="document.getElementById('filtroUsuario').value=practica.usuario; ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Ver estadísticas</button>
-            <button class="btn-cta" onclick="ui.mostrar('setup'); ui.irPaso(2);">🔁 Reintentar</button>
-            <button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button>
+            <button class="btn" onclick="document.getElementById('filtroUsuario').value=practica.usuario; ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
+            <button class="btn" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver verbos</button>
+            <button class="btn" onclick="datos.abrirModalAgregar()">➕ Agregar verbo</button>
+            <button class="btn-cta" onclick="ui.mostrar('menu')">🏠 Menú principal</button>
           </div>
         </div>
       </div>
@@ -168,31 +177,25 @@
       <div class="hint">*Haz clic en ✏️ para editar o en 🗑️ para borrar.</div>
       <ul id="listaVerbos"></ul>
     </section>
-  </main>
 
-  <!-- Modal AGREGAR/EDITAR VERBO -->
-  <div id="modalVerb" class="modal hidden" onclick="datos.cerrarModal()">
-    <div class="modal-content" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
-      <button class="close-x" aria-label="Cerrar" onclick="datos.cerrarModal()">✖</button>
-      <h3 id="modalVerbTitle">✏️ Editar verbo</h3>
-      <div class="grid">
-        <input type="text" id="editPresente" placeholder="Base form" />
-        <input type="text" id="editPasado" placeholder="Simple past" />
-        <input type="text" id="editTraduccion" placeholder="Traducción base (ES)" />
-        <input type="text" id="editTraduccionPasado" placeholder="Traducción del pasado (ES)" />
-        <input type="text" id="editContinuo" placeholder="Past continuous (opcional)" />
-        <input type="text" id="editTraduccionContinuo" placeholder="Traducción del past continuous (opcional)" />
-        <select id="editCategoria">
-          <option value="regular">Regular</option>
-          <option value="irregular">Irregular</option>
-        </select>
+    <!-- Estadísticas -->
+    <section id="stats" class="panel hidden">
+      <div class="stats-layout">
+        <aside class="users-panel">
+          <div class="users-header">
+            <strong>Usuarios</strong>
+            <input type="text" id="filtroUsuario" placeholder="Filtrar por usuario" />
+            <button class="btn" onclick="ui.cargarEstadisticas()">Aplicar filtro</button>
+          </div>
+          <ul id="listaUsuarios" class="users-list"></ul>
+        </aside>
+        <div>
+          <div class="chart-box"><canvas id="chartStats"></canvas></div>
+          <div id="tablaStats" class="table-box" style="margin-top:12px"></div>
+        </div>
       </div>
-      <div class="row" style="margin-top:10px">
-        <button class="btn-cta" onclick="datos.guardarModal()">💾 Guardar</button>
-        <button class="btn-cancel" onclick="datos.cerrarModal()">✖ Cancelar</button>
-      </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
   <script src="/static/script.js"></script>
 </body>
