@@ -87,7 +87,6 @@ def _migrate_if_missing():
     # Si no existe en /var/data, intentar "seed" desde repo
     if not os.path.exists(VERBOS_FILE):
         seed = _read_json("verbos.json", [])
-        # Normaliza campos faltantes
         seed_norm = []
         for v in seed:
             seed_norm.append(_normalize_verb_input(v))
@@ -104,11 +103,11 @@ _migrate_if_missing()
 def _is_vowel(c): return c.lower() in "aeiou"
 
 def _gerund(base: str) -> str:
-    """Gerundio simple para autocompletar (-ing). No cubre 100%, pero ayuda."""
+    """Gerundio simple para autocompletar (-ing)."""
     w = (base or "").strip().lower()
     if not w:
         return ""
-    if w == "be":   # caso típico
+    if w == "be":
         return "being"
     if w.endswith("ie"):
         return w[:-2] + "ying"   # die -> dying
@@ -123,11 +122,6 @@ def _gerund(base: str) -> str:
     return w + "ing"
 
 def _autofill_continuous(v: Dict) -> Dict:
-    """
-    Asegura 'continuo' y 'traduccion_continuo'.
-    continuo = 'was / were <gerundio(base)>'
-    traduccion_continuo = traduccion_pasado (o traduccion).
-    """
     base = v.get("presente") or v.get("base") or ""
     v.setdefault("traduccion", "")
     v.setdefault("traduccion_pasado", v.get("traduccion", ""))
@@ -143,12 +137,6 @@ def _autofill_continuous(v: Dict) -> Dict:
     return v
 
 def _normalize_verb_input(v: Dict) -> Dict:
-    """
-    Acepta múltiples esquemas de entrada y normaliza al formato usado por el frontend:
-    { presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria }
-    También acepta: base, past, continuo/past_continuous, etc.
-    """
-    # Tomar posibles nombres
     presente = (v.get("presente") or v.get("base") or "").strip().lower()
     pasado = (v.get("pasado") or v.get("past") or "").strip().lower()
     traduccion = (v.get("traduccion") or v.get("traducción") or "").strip().lower()
@@ -170,13 +158,9 @@ def _normalize_verb_input(v: Dict) -> Dict:
     return out
 
 def _normalize_verb_strict_for_add(data: Dict) -> Dict:
-    """
-    Normaliza para agregar/editar desde el frontend actual (puede venir vacío el continuo)
-    """
     req_min = ["presente", "pasado", "traduccion", "traduccion_pasado", "categoria"]
     if not all(k in data and str(data[k]).strip() for k in req_min):
         raise ValueError("Faltan campos obligatorios.")
-
     return _normalize_verb_input(data)
 
 # ================
@@ -184,9 +168,7 @@ def _normalize_verb_strict_for_add(data: Dict) -> Dict:
 # ================
 def load_verbs() -> List[Dict]:
     arr = _read_json(VERBOS_FILE, [])
-    # Normaliza/Autocompleta todo
-    norm = [_normalize_verb_input(v) for v in arr]
-    return norm
+    return [_normalize_verb_input(v) for v in arr]
 
 def save_verbs(verbs: List[Dict]):
     norm = [_normalize_verb_input(v) for v in verbs]
@@ -269,7 +251,6 @@ def eliminar_verbo():
 @app.route("/exportar_verbos", methods=["GET"])
 def exportar_verbos():
     data = load_verbs()
-    # Adjuntar como archivo para descarga
     return Response(
         json.dumps(data, ensure_ascii=False, indent=2),
         mimetype="application/json",
@@ -278,12 +259,6 @@ def exportar_verbos():
 
 @app.route("/importar_verbos", methods=["POST"])
 def importar_verbos():
-    """
-    Acepta:
-      - JSON en el body (lista de verbos)
-      - o multipart/form-data con 'file' (archivo .json)
-    Normaliza y fusiona (sin duplicar por 'presente').
-    """
     payload = None
     if request.files.get("file"):
         try:
@@ -319,23 +294,6 @@ def importar_verbos():
 # ===================
 @app.route("/preguntas", methods=["POST"])
 def preguntas():
-    """
-    Recibe: { modo: 'simple'|'continuous', tipo: 'regular'|'irregular'|'todos', cantidad: int|'ilimitado' }
-    Simple Past (balanceado):
-      a) presente -> pasado
-      b) pasado   -> presente
-      c) presente -> español
-      d) pasado   -> español (traduccion_pasado)
-      e) español  -> presente
-      f) español  -> pasado
-    Past Continuous (balanceado):
-      a) presente -> continuo
-      b) continuo -> presente
-      c) presente -> español (base)
-      d) continuo -> español (traduccion_continuo)
-      e) español (base) -> presente
-      f) español (cont) -> continuo
-    """
     data = request.json or {}
     modo = data.get("modo", "simple")
     tipo = data.get("tipo", "todos")
@@ -358,7 +316,7 @@ def preguntas():
     for i in range(n):
         code = modos[i % 6]
         v = random.choice(verbos)
-        v = _autofill_continuous(dict(v))  # asegurar continuo
+        v = _autofill_continuous(dict(v))
         t_es = v.get("traduccion","")
         t_es_past = v.get("traduccion_pasado", t_es)
         cont = v.get("continuo","")
@@ -377,10 +335,9 @@ def preguntas():
                 preguntas.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{t_es}'?", "respuesta": v["presente"]})
             else:
                 preguntas.append({"pregunta": f"En inglés (pasado), ¿cómo se dice '{t_es_past}'?", "respuesta": v["pasado"]})
-
-        else:  # continuous
+        else:
             if not cont or not t_es_cont:
-                code = "c"  # evitar vacíos
+                code = "c"
             if code == "a":
                 preguntas.append({"pregunta": f"¿Cuál es el pasado continuo de '{v['presente']}'?", "respuesta": cont})
             elif code == "b":
@@ -452,7 +409,6 @@ def preguntas_wh_oraciones():
         ("___ car is newer, the red one or the blue one?", ["Which","What","Whose","How"], 0)
     ]
 
-    # Barajar y cortar
     random.shuffle(templates)
     bank = [{"pregunta": s, "opciones": opts[:], "correcta": i_ok, "respuesta": opts[i_ok]} for (s, opts, i_ok) in templates]
 
@@ -461,7 +417,6 @@ def preguntas_wh_oraciones():
     else:
         n = min(len(bank), 60)
 
-    # Barajar opciones por pregunta para que no siempre sea índice 0
     for item in bank:
         correct_word = item["opciones"][item["correcta"]]
         random.shuffle(item["opciones"])
@@ -484,7 +439,7 @@ def guardar_resultado():
 
     registro = {
         "usuario": (data.get("usuario") or "invitado").strip(),
-        "tipo": data.get("tipo", "simple"),  # 'simple' | 'continuous' | 'wh/traduccion' | 'wh/oraciones'
+        "tipo": data.get("tipo", "simple"),
         "limitado": bool(data.get("limitado", False)),
         "cantidad": data.get("cantidad", "ilimitado"),
         "correctas": int(data.get("correctas", 0)),
@@ -539,15 +494,9 @@ def usuarios():
     })
     return jsonify(names)
 
-# ===========
-#   HEALTH
-# ===========
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"ok": True, "data_dir": DATA_DIR})
 
-# ===========
-#  RUN APP
-# ===========
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
