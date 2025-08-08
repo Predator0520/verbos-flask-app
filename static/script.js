@@ -21,6 +21,32 @@ const ui = {
     const step = document.getElementById(`step${n}`);
     if (step) step.classList.remove("hidden");
   },
+
+  // ==== Usuarios (sidebar) ====
+  cargarUsuarios: async () => {
+    try{
+      const res = await fetch("/usuarios");
+      const users = await res.json();
+      const ul = document.getElementById("listaUsuarios");
+      ul.innerHTML = users.length ? "" : "<li>(Sin usuarios aún)</li>";
+      users.forEach(name => {
+        const li = document.createElement("li");
+        li.textContent = name;
+        li.onclick = () => {
+          document.querySelectorAll("#listaUsuarios li").forEach(x=>x.classList.remove("active"));
+          li.classList.add("active");
+          document.getElementById("filtroUsuario").value = name;
+          ui.cargarEstadisticas();
+        };
+        ul.appendChild(li);
+      });
+    }catch(e){
+      console.error(e);
+      document.getElementById("listaUsuarios").innerHTML = "<li>Error cargando usuarios</li>";
+    }
+  },
+
+  // ==== Estadísticas ====
   cargarEstadisticas: async () => {
     try{
       const usuario = document.getElementById("filtroUsuario").value.trim();
@@ -56,7 +82,6 @@ const ui = {
         `;
       }
 
-      // Gráfico compacto dentro de .chart-box (altura controlada por CSS)
       const ctx = document.getElementById("chartStats");
       if (window._chart) window._chart.destroy();
       window._chart = new Chart(ctx, {
@@ -70,14 +95,13 @@ const ui = {
         },
         options: {
           responsive: true,
-          maintainAspectRatio: false, // usamos el alto del contenedor
+          maintainAspectRatio: false,
           plugins: { legend: { position: "top" } },
-          scales: {
-            y: { beginAtZero: true, ticks: { precision:0 } }
-          }
+          scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
         }
       });
     }catch(e){
+      console.error(e);
       document.getElementById("tablaStats").innerHTML = "<div style='padding:10px'>Error cargando estadísticas.</div>";
     }
   }
@@ -101,7 +125,7 @@ const datos = {
       const li = document.createElement("li");
       li.innerHTML = `
         <span class="badge ${v.categoria}">${v.categoria}</span>
-        <span class="verb">${v.presente} – ${v.pasado} – ${v.traduccion}</span>
+        <span class="verb">${v.presente} – ${v.pasado} – ${v.traduccion} / ${v.traduccion_pasado}</span>
         <button class="mini" type="button" data-idx="${idx}" data-action="edit">✏️</button>
         <button class="mini danger" type="button" data-idx="${idx}" data-action="del">🗑️</button>
       `;
@@ -114,13 +138,17 @@ const datos = {
         const action = e.currentTarget.dataset.action;
         if (action === "edit") {
           const v = datos.verbos[idx];
-          const nuevo = prompt("Editar: presente,pasado,traducción,categoria", `${v.presente},${v.pasado},${v.traduccion},${v.categoria}`);
+          const nuevo = prompt(
+            "Editar: presente,pasado,traducción,trad. pasado,categoria",
+            `${v.presente},${v.pasado},${v.traduccion},${v.traduccion_pasado},${v.categoria}`
+          );
           if (!nuevo) return;
-          const [presente, pasado, traduccion, categoria] = nuevo.split(",").map(s => (s||"").trim());
+          const [presente, pasado, traduccion, traduccion_pasado, categoria] =
+            nuevo.split(",").map(s => (s||"").trim());
           const res = await fetch("/editar_verbo", {
             method: "POST",
             headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({index: idx, verbo: {presente, pasado, traduccion, categoria}})
+            body: JSON.stringify({index: idx, verbo: {presente, pasado, traduccion, traduccion_pasado, categoria}})
           });
           const data = await res.json();
           if (data.ok) datos.listarVerbos();
@@ -143,15 +171,16 @@ const datos = {
     const presente = document.getElementById("nuevoPresente").value.trim();
     const pasado = document.getElementById("nuevoPasado").value.trim();
     const traduccion = document.getElementById("nuevaTraduccion").value.trim();
+    const traduccion_pasado = document.getElementById("nuevaTraduccionPasado").value.trim();
     const categoria = document.getElementById("nuevaCategoria").value;
-    if (!presente || !pasado || !traduccion) {
+    if (!presente || !pasado || !traduccion || !traduccion_pasado) {
       document.getElementById("mensajeAgregar").textContent = "⚠️ Todos los campos son obligatorios.";
       return;
     }
     const res = await fetch("/agregar_verbo", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({presente, pasado, traduccion, categoria})
+      body: JSON.stringify({presente, pasado, traduccion, traduccion_pasado, categoria})
     });
     const data = await res.json();
     document.getElementById("mensajeAgregar").textContent = data.msg || (data.ok ? "Guardado" : "Error");
@@ -159,6 +188,7 @@ const datos = {
       document.getElementById("nuevoPresente").value = "";
       document.getElementById("nuevoPasado").value = "";
       document.getElementById("nuevaTraduccion").value = "";
+      document.getElementById("nuevaTraduccionPasado").value = "";
     }
   }
 };
@@ -250,9 +280,25 @@ const practica = {
   },
 
   verificar(){
+    // normalizador: quita tildes/espacios extra y pasa a minúsculas
+    const norm = (s) => (s ?? "")
+      .toString()
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
     const q = this.preguntas[this.idx % this.preguntas.length];
-    const resp = (document.getElementById("respuesta").value || "").trim().toLowerCase();
-    const ok = resp === q.respuesta.toLowerCase();
+    const resp = norm(document.getElementById("respuesta").value || "");
+    const expected = q.respuesta;
+
+    let ok = false;
+    if (Array.isArray(expected)) {
+      ok = expected.some(ans => norm(ans) === resp);
+    } else {
+      ok = norm(expected) === resp;
+    }
+
     const out = document.getElementById("resultado");
 
     if(ok){
@@ -261,7 +307,7 @@ const practica = {
       if (this.streak && this.streak % 5 === 0) out.textContent += ` 🔥 Racha de ${this.streak}!`;
     }else{
       this.incorrectas++; this.streak = 0;
-      out.textContent = `❌ Incorrecto. Era: ${q.respuesta}`;
+      out.textContent = `❌ Incorrecto. Era: ${Array.isArray(expected) ? expected[0] : expected}`;
     }
     this.idx++;
     this._pintarPregunta();
@@ -320,7 +366,7 @@ const practica = {
   _stopTimer(){ if (this.timerInt) clearInterval(this.timerInt); this.timerInt = null; }
 };
 
-// ===== Modo oscuro persistente =====
+// ===== Dark mode =====
 (function initDarkMode(){
   const btn = document.getElementById("btn-dark");
   const apply = (dark) => {
