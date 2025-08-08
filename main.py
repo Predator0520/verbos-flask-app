@@ -43,6 +43,11 @@ def _escribir_json(path, data):
 def _migrar_si_falta():
     if not os.path.exists(VERBOS_FILE):
         seed = _leer_json("verbos.json", [])
+        # Normalizar campos faltantes
+        for v in seed:
+            v.setdefault("traduccion_pasado", v.get("traduccion",""))
+            v.setdefault("continuo", "")
+            v.setdefault("traduccion_continuo", v.get("traduccion_pasado", v.get("traduccion","")))
         _escribir_json(VERBOS_FILE, seed)
     if not os.path.exists(STATS_FILE):
         seed = _leer_json("stats.json", [])
@@ -56,8 +61,9 @@ def cargar_verbos():
     # Compat: rellenar campos nuevos si faltan
     for v in verbos:
         v.setdefault("traduccion_pasado", v.get("traduccion", ""))
-        v.setdefault("continuo", "")  # past continuous en inglés (p.ej., "was/were going")
+        v.setdefault("continuo", "")
         v.setdefault("traduccion_continuo", v.get("traduccion_pasado", v.get("traduccion","")))
+        v.setdefault("categoria", v.get("categoria","regular"))
     return verbos
 
 def guardar_verbos(v): _escribir_json(VERBOS_FILE, v)
@@ -186,6 +192,7 @@ def preguntas():
         t_es_cont = v.get("traduccion_continuo", t_es_past or t_es)
 
         if modo == "simple":
+          # Evitar preguntas vacías por datos incompletos
             if code == "a":
                 preguntas.append({"pregunta": f"¿Cuál es el pasado de '{v['presente']}'?", "respuesta": v["pasado"]})
             elif code == "b":
@@ -200,6 +207,9 @@ def preguntas():
                 preguntas.append({"pregunta": f"En inglés (pasado), ¿cómo se dice '{t_es_past}'?", "respuesta": v["pasado"]})
 
         else:  # continuous
+            if not cont or not t_es_cont:
+                # si faltan datos del continuo, saltamos esa variante
+                code = "c"  # forzar a una segura
             if code == "a":
                 preguntas.append({"pregunta": f"¿Cuál es el pasado continuo de '{v['presente']}'?", "respuesta": cont})
             elif code == "b":
@@ -215,12 +225,9 @@ def preguntas():
 
     return jsonify(preguntas)
 
-# ---------- Preguntas WH ----------
+# ---------- Preguntas WH (traducción) ----------
 @app.route("/preguntas_wh", methods=["POST"])
 def preguntas_wh():
-    """
-    Genera preguntas de WH (mapeo EN<->ES). Balanceadas.
-    """
     data = request.json or {}
     cantidad = data.get("cantidad", "ilimitado")
     bank = [
@@ -249,6 +256,51 @@ def preguntas_wh():
             qs.append({"pregunta": f"Traduce al inglés: '{it['es']}'", "respuesta": it["en"]})
     return jsonify(qs)
 
+# ---------- Preguntas WH (oraciones de opción múltiple) ----------
+@app.route("/preguntas_wh_oraciones", methods=["POST"])
+def preguntas_wh_oraciones():
+    """
+    Devuelve preguntas con opciones:
+      { pregunta: str, opciones: [str,str,str,str], correcta: idx }
+    """
+    data = request.json or {}
+    cantidad = data.get("cantidad", "ilimitado")
+
+    # Banco básico de plantillas: cada item define la correcta y distractores.
+    templates = [
+        # who/what/when/where/why/how/which/whose/how many/how much
+        ("___ did you call last night?",           ["Who","What","When","Where"], 0),
+        ("___ is your favorite color?",            ["What","Which","Why","How"], 0),
+        ("___ did they arrive?",                   ["When","Where","Who","Why"], 0),
+        ("___ are you from?",                      ["Where","When","How","Who"], 0),
+        ("___ are you late?",                      ["Why","How","When","What"], 0),
+        ("___ do you spell your name?",            ["How","What","Why","When"], 0),
+        ("___ book do you want, this one or that one?", ["Which","What","Whose","Who"], 0),
+        ("___ bag is this?",                       ["Whose","Who","Which","Where"], 0),
+        ("___ apples do we need for the pie?",     ["How many","How much","Which","What"], 0),
+        ("___ water should I add?",                ["How much","How many","When","Why"], 0),
+        ("I don’t know ___ he is calling.",        ["why","which","who","when"], 0),
+        ("___ did you go to the store? (reason)",  ["Why","When","Where","Who"], 0),
+        ("___ are they meeting? (place)",          ["Where","When","What","Which"], 0),
+        ("___ does this word mean?",               ["What","Which","How","Why"], 0),
+        ("___ car is newer, the red one or the blue one?", ["Which","What","Whose","How"], 0)
+    ]
+
+    # Generar preguntas
+    bank = []
+    for sent, opts, correct in templates:
+        # Variantes simples con mayúsculas/minúsculas
+        bank.append({"pregunta": sent, "opciones": opts[:], "correcta": correct, "respuesta": opts[correct]})
+
+    # Cantidad
+    if isinstance(cantidad, int):
+        n = max(1, min(int(cantidad), 200))
+    else:
+        n = min(len(bank), 60)
+
+    random.shuffle(bank)
+    return jsonify(bank[:n])
+
 # ---------- Estadísticas ----------
 @app.route("/guardar_resultado", methods=["POST"])
 def guardar_resultado():
@@ -262,7 +314,7 @@ def guardar_resultado():
 
     registro = {
         "usuario": (data.get("usuario") or "invitado").strip(),
-        "tipo": data.get("tipo", "simple"),  # simple | continuous | wh
+        "tipo": data.get("tipo", "simple"),  # 'simple' | 'continuous' | 'wh/traduccion' | 'wh/oraciones'
         "limitado": bool(data.get("limitado", False)),
         "cantidad": data.get("cantidad", "ilimitado"),
         "correctas": int(data.get("correctas", 0)),
