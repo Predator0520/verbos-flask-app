@@ -23,7 +23,7 @@ def _writable(path: str) -> bool:
     except Exception:
         return False
 
-# Si /var/data no es escribible, usa cwd (local dev)
+# Si /var/data no es escribible (ej: local), usa cwd
 if not _writable(DATA_DIR):
     DATA_DIR = os.getcwd()
 
@@ -39,13 +39,15 @@ def _leer_json(path, default):
                 return default
     return default
 
-def _escribir_json(path, data):
+def _escribir_json_atomico(path, data):
+    """Escritura atómica + fsync para evitar corrupción si el contenedor se suspende."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-        # Garantiza persistencia incluso si el contenedor se suspende
         f.flush()
         os.fsync(f.fileno())
+    os.replace(tmp, path)  # atómico en la misma partición
 
 def _migrar_si_falta():
     # Si no existe el archivo en /var/data, intenta seed desde el repo (verbos.json/stats.json)
@@ -57,10 +59,10 @@ def _migrar_si_falta():
             v.setdefault("continuo", "")
             v.setdefault("traduccion_continuo", v.get("traduccion_pasado", v.get("traduccion","")))
             v.setdefault("categoria", v.get("categoria","regular"))
-        _escribir_json(VERBOS_FILE, seed)
+        _escribir_json_atomico(VERBOS_FILE, seed)
     if not os.path.exists(STATS_FILE):
         seed = _leer_json("stats.json", [])
-        _escribir_json(STATS_FILE, seed)
+        _escribir_json_atomico(STATS_FILE, seed)
 
 _migrar_si_falta()
 
@@ -68,33 +70,27 @@ _migrar_si_falta()
 def _is_vowel(c): return c.lower() in "aeiou"
 
 def _gerund(base: str) -> str:
-    """
-    Construye el gerundio en inglés (forma -ing) con reglas comunes.
-    No pretende cubrir el 100%, pero sirve para autocompletar.
-    """
-    w = base.strip().lower()
+    """Construye el gerundio -ing con reglas comunes (no 100% exhaustivo, suficiente para autocompletar)."""
+    w = (base or "").strip().lower()
     if not w:
         return ""
-    if w == "be":   # irregular común
+    if w == "be":
         return "being"
     if w.endswith("ie"):
         return w[:-2] + "ying"   # die -> dying
     if w.endswith("e") and len(w) > 2 and w[-2] not in "aeiou":
-        # make -> making, but see -> seeing (por la vocal antes)
         if w.endswith("ee"):
-            return w + "ing"
-        return w[:-1] + "ing"
-    # Duplicación de consonante final en patrón CVC corto (run -> running)
-    if len(w) >= 3 and (not _is_vowel(w[-1])) and _is_vowel(w[-2]) and (not _is_vowel(w[-3])):
-        # evita duplicar en 'w', 'x', 'y'
-        if w[-1] not in "wxy":
-            return w + w[-1] + "ing"
+            return w + "ing"     # see -> seeing
+        return w[:-1] + "ing"    # make -> making
+    # Duplicación consonante final en patrón CVC corto: run -> running
+    if len(w) >= 3 and (not _is_vowel(w[-1])) and _is_vowel(w[-2]) and (not _is_vowel(w[-3])) and w[-1] not in "wxy":
+        return w + w[-1] + "ing"
     return w + "ing"
 
 def _autocompletar_continuo(v: dict) -> dict:
     """
-    Asegura que exista 'continuo' y 'traduccion_continuo'.
-    continuo = "was/were <gerundio(base)>"
+    Asegura 'continuo' y 'traduccion_continuo'.
+    continuo = "was / were <gerundio(base)>"
     traduccion_continuo = traduccion_pasado (fallback a traduccion)
     """
     v.setdefault("presente","")
@@ -104,10 +100,26 @@ def _autocompletar_continuo(v: dict) -> dict:
     v.setdefault("traduccion_continuo", v.get("traduccion_pasado", v.get("traduccion","")))
     if not v["continuo"]:
         g = _gerund(v["presente"])
-        v["continuo"] = f"was/were {g}" if g else ""
+        v["continuo"] = f"was / were {g}" if g else ""
     if not v["traduccion_continuo"]:
         v["traduccion_continuo"] = v.get("traduccion_pasado") or v.get("traduccion") or ""
     return v
+
+def _split_variants(s: str):
+    """
+    Divide respuestas múltiples por '/', ',' y ';' y normaliza.
+    Ej: "conocí / supe" -> ["conocí", "supe"]
+    """
+    if not s: return []
+    raw = [p.strip() for sep in ["/", ",", ";"] for p in s.replace(sep, "|").split("|")]
+    out = [x for x in (z.strip() for z in raw) if x]
+    # quitar duplicados conservando orden
+    seen, unique = set(), []
+    for x in out:
+        if x.lower() not in seen:
+            seen.add(x.lower())
+            unique.append(x)
+    return unique
 
 # ---------- Acceso a datos ----------
 def cargar_verbos():
@@ -122,10 +134,10 @@ def cargar_verbos():
 def guardar_verbos(v):
     # Antes de guardar, autocompletar continuo/esp para evitar nulos
     v = [_autocompletar_continuo(dict(item)) for item in v]
-    _escribir_json(VERBOS_FILE, v)
+    _escribir_json_atomico(VERBOS_FILE, v)
 
 def cargar_stats(): return _leer_json(STATS_FILE, [])
-def guardar_stats(s): _escribir_json(STATS_FILE, s)
+def guardar_stats(s): _escribir_json_atomico(STATS_FILE, s)
 
 # ---------- Vistas ----------
 @app.route("/")
@@ -159,8 +171,8 @@ def agregar_verbo():
         "pasado": data["pasado"].strip().lower(),
         "traduccion": data["traduccion"].strip().lower(),
         "traduccion_pasado": data["traduccion_pasado"].strip().lower(),
-        "continuo": continuo.lower(),
-        "traduccion_continuo": traduccion_continuo.lower(),
+        "continuo": continuo.strip().lower(),
+        "traduccion_continuo": traduccion_continuo.strip().lower(),
         "categoria": data["categoria"].strip().lower()
     }
     nuevo = _autocompletar_continuo(nuevo)
@@ -217,6 +229,23 @@ def eliminar_verbo():
 # ---------- Preguntas (Simple/Past Continuous) ----------
 @app.route("/preguntas", methods=["POST"])
 def preguntas():
+    """
+    Recibe: { modo: 'simple'|'continuous', tipo: 'regular'|'irregular'|'todos', cantidad: int|'ilimitado' }
+    Simple Past (balanceado):
+      1) presente -> pasado
+      2) pasado   -> presente
+      3) presente -> español
+      4) pasado   -> español (traduccion_pasado)
+      5) español  -> presente
+      6) español  -> pasado
+    Past Continuous (balanceado):
+      1) presente -> continuo
+      2) continuo -> presente
+      3) presente -> español (base)
+      4) continuo -> español (traduccion_continuo)
+      5) español (base) -> presente
+      6) español (cont) -> continuo
+    """
     data = request.json or {}
     modo = data.get("modo", "simple")
     tipo = data.get("tipo", "todos")
@@ -240,10 +269,11 @@ def preguntas():
         code = modos[i % 6]
         v = random.choice(verbos)
         v = _autocompletar_continuo(v)  # asegura continuo
-        t_es = v.get("traduccion","")
-        t_es_past = v.get("traduccion_pasado", t_es)
+        # Variantes de traducción aceptadas (listas)
+        t_es_variants      = _split_variants(v.get("traduccion",""))
+        t_es_past_variants = _split_variants(v.get("traduccion_pasado", v.get("traduccion","")))
         cont = v.get("continuo","")
-        t_es_cont = v.get("traduccion_continuo", t_es_past or t_es)
+        t_es_cont_variants = _split_variants(v.get("traduccion_continuo", v.get("traduccion_pasado", v.get("traduccion",""))))
 
         if modo == "simple":
             if code == "a":
@@ -251,29 +281,29 @@ def preguntas():
             elif code == "b":
                 preguntas.append({"pregunta": f"¿Cuál es el presente de '{v['pasado']}'?", "respuesta": v["presente"]})
             elif code == "c":
-                preguntas.append({"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?", "respuesta": t_es})
+                preguntas.append({"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?", "respuesta": t_es_variants or v.get("traduccion","")})
             elif code == "d":
-                preguntas.append({"pregunta": f"¿Cómo se traduce el pasado '{v['pasado']}' al español?", "respuesta": t_es_past})
+                preguntas.append({"pregunta": f"¿Cómo se traduce el pasado '{v['pasado']}' al español?", "respuesta": t_es_past_variants or v.get("traduccion_pasado","")})
             elif code == "e":
-                preguntas.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{t_es}'?", "respuesta": v["presente"]})
+                preguntas.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{(t_es_variants or [v.get('traduccion','')])[0]}'?", "respuesta": v["presente"]})
             else:
-                preguntas.append({"pregunta": f"En inglés (pasado), ¿cómo se dice '{t_es_past}'?", "respuesta": v["pasado"]})
+                preguntas.append({"pregunta": f"En inglés (pasado), ¿cómo se dice '{(t_es_past_variants or [v.get('traduccion_pasado','')])[0]}'?", "respuesta": v["pasado"]})
         else:  # continuous
-            # Si por alguna razón cont está vacío, fuerza preguntas seguras
-            if not cont or not t_es_cont:
+            # Si por alguna razón cont o su traducción está vacío, fuerza preguntas seguras
+            if not cont or not t_es_cont_variants:
                 code = "c"
             if code == "a":
                 preguntas.append({"pregunta": f"¿Cuál es el pasado continuo de '{v['presente']}'?", "respuesta": cont})
             elif code == "b":
                 preguntas.append({"pregunta": f"¿Cuál es el presente del continuo '{cont}'?", "respuesta": v["presente"]})
             elif code == "c":
-                preguntas.append({"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?", "respuesta": t_es})
+                preguntas.append({"pregunta": f"¿Cómo se traduce '{v['presente']}' al español?", "respuesta": t_es_variants or v.get("traduccion","")})
             elif code == "d":
-                preguntas.append({"pregunta": f"¿Cómo se traduce el pasado continuo '{cont}' al español?", "respuesta": t_es_cont})
+                preguntas.append({"pregunta": f"¿Cómo se traduce el pasado continuo '{cont}' al español?", "respuesta": t_es_cont_variants or v.get("traduccion_continuo","")})
             elif code == "e":
-                preguntas.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{t_es}'?", "respuesta": v["presente"]})
+                preguntas.append({"pregunta": f"En inglés (presente), ¿cómo se dice '{(t_es_variants or [v.get('traduccion','')])[0]}'?", "respuesta": v["presente"]})
             else:
-                preguntas.append({"pregunta": f"En inglés (pasado continuo), ¿cómo se dice '{t_es_cont}'?", "respuesta": cont})
+                preguntas.append({"pregunta": f"En inglés (pasado continuo), ¿cómo se dice '{(t_es_cont_variants or [v.get('traduccion_continuo','')])[0]}'?", "respuesta": cont})
 
     return jsonify(preguntas)
 
@@ -332,8 +362,14 @@ def preguntas_wh_oraciones():
         ("___ car is newer, the red one or the blue one?", ["Which","What","Whose","How"], 0)
     ]
 
-    bank = [{"pregunta": s, "opciones": opts[:], "correcta": i_ok, "respuesta": opts[i_ok]}
-            for (s, opts, i_ok) in templates]
+    bank = []
+    for sent, opts, correct in templates:
+        # Barajar opciones y recalcular índice correcto
+        pairs = list(enumerate(opts))
+        random.shuffle(pairs)
+        shuffled_opts = [txt for (_, txt) in pairs]
+        new_correct = next(i for i, (_, txt) in enumerate(pairs) if txt == opts[correct])
+        bank.append({"pregunta": sent, "opciones": shuffled_opts, "correcta": new_correct, "respuesta": shuffled_opts[new_correct]})
 
     if isinstance(cantidad, int):
         n = max(1, min(int(cantidad), 200))
