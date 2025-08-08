@@ -3,9 +3,7 @@ const ui = {
   mostrar: (id) => {
     const modal = document.getElementById("resumen");
     if (modal) { modal.classList.add("hidden"); modal.style.display = "none"; }
-
-    const btnVer = document.getElementById("btn-ver-verbos");
-    if (btnVer) btnVer.disabled = (id === "play" || id === "setup");
+    document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
 
     ["menu","setup","play","lista","agregar","stats"].forEach(sec => {
       document.getElementById(sec).classList.add("hidden");
@@ -127,6 +125,8 @@ const ui = {
 // ===== VERBOS =====
 const datos = {
   verbos: [],
+  _editIndex: -1,
+
   listarVerbos: async () => {
     const ul = document.getElementById("listaVerbos");
     ul.innerHTML = "<li>Cargando...</li>";
@@ -157,22 +157,7 @@ const datos = {
         const idx = Number(e.currentTarget.dataset.idx);
         const action = e.currentTarget.dataset.action;
         if (action === "edit") {
-          const v = datos.verbos[idx];
-          const nuevo = prompt(
-            "Editar: presente,pasado,traducción,trad. pasado,continuo (opcional),trad. continuo (opcional),categoria",
-            `${v.presente},${v.pasado},${v.traduccion},${v.traduccion_pasado},${v.continuo||""},${v.traduccion_continuo||""},${v.categoria}`
-          );
-          if (!nuevo) return;
-          const [presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria] =
-            nuevo.split(",").map(s => (s||"").trim());
-          const res = await fetch("/editar_verbo", {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({index: idx, verbo: {presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria}})
-          });
-          const data = await res.json();
-          if (data.ok) datos.listarVerbos();
-          else alert(data.msg || "Error al editar");
+          datos._abrirModal(idx);
         } else {
           if (!confirm("¿Eliminar verbo?")) return;
           const res = await fetch("/eliminar_verbo", {
@@ -187,17 +172,19 @@ const datos = {
       });
     });
   },
+
   agregar: async () => {
-    const presente = document.getElementById("nuevoPresente").value.trim();
-    const pasado = document.getElementById("nuevoPasado").value.trim();
-    const traduccion = document.getElementById("nuevaTraduccion").value.trim();
-    const traduccion_pasado = document.getElementById("nuevaTraduccionPasado").value.trim();
-    const continuo = document.getElementById("nuevoContinuo").value.trim(); // ahora OPCIONAL (autocompletable)
-    const traduccion_continuo = document.getElementById("nuevaTraduccionContinuo").value.trim(); // OPCIONAL
+    const g = (id)=>document.getElementById(id).value.trim();
+    const presente = g("nuevoPresente").toLowerCase();
+    const pasado = g("nuevoPasado").toLowerCase();
+    const traduccion = g("nuevaTraduccion").toLowerCase();
+    const traduccion_pasado = g("nuevaTraduccionPasado").toLowerCase();
+    const continuo = g("nuevoContinuo").toLowerCase();
+    const traduccion_continuo = g("nuevaTraduccionContinuo").toLowerCase();
     const categoria = document.getElementById("nuevaCategoria").value;
 
     if (!presente || !pasado || !traduccion || !traduccion_pasado) {
-      document.getElementById("mensajeAgregar").textContent = "⚠️ Llena: base, pasado y sus traducciones. El continuo es opcional (se autocompleta).";
+      document.getElementById("mensajeAgregar").textContent = "⚠️ Completa base, pasado y traducciones. El continuo es opcional (se autocompleta).";
       return;
     }
 
@@ -212,13 +199,75 @@ const datos = {
       ["nuevoPresente","nuevoPasado","nuevaTraduccion","nuevaTraduccionPasado","nuevoContinuo","nuevaTraduccionContinuo"]
         .forEach(id => document.getElementById(id).value = "");
     }
+  },
+
+  // Modal edición
+  _abrirModal: (idx) => {
+    datos._editIndex = idx;
+    const v = datos.verbos[idx];
+    document.getElementById("editPresente").value = v.presente || "";
+    document.getElementById("editPasado").value = v.pasado || "";
+    document.getElementById("editTraduccion").value = v.traduccion || "";
+    document.getElementById("editTraduccionPasado").value = v.traduccion_pasado || "";
+    document.getElementById("editContinuo").value = v.continuo || "";
+    document.getElementById("editTraduccionContinuo").value = v.traduccion_continuo || "";
+    document.getElementById("editCategoria").value = v.categoria || "regular";
+    document.getElementById("modalEdit").classList.remove("hidden");
+  },
+  cerrarModal: () => {
+    document.getElementById("modalEdit").classList.add("hidden");
+    datos._editIndex = -1;
+  },
+  confirmarEdicion: async () => {
+    const idx = datos._editIndex;
+    if (idx < 0) return;
+    const g = (id)=>document.getElementById(id).value.trim();
+    const verbo = {
+      presente: g("editPresente").toLowerCase(),
+      pasado: g("editPasado").toLowerCase(),
+      traduccion: g("editTraduccion").toLowerCase(),
+      traduccion_pasado: g("editTraduccionPasado").toLowerCase(),
+      continuo: g("editContinuo").toLowerCase(),
+      traduccion_continuo: g("editTraduccionContinuo").toLowerCase(),
+      categoria: document.getElementById("editCategoria").value
+    };
+    if (!verbo.presente || !verbo.pasado || !verbo.traduccion || !verbo.traduccion_pasado) {
+      alert("Completa base, pasado y sus traducciones.");
+      return;
+    }
+    const res = await fetch("/editar_verbo", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({index: idx, verbo})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      datos.cerrarModal();
+      datos.listarVerbos();
+    } else {
+      alert(data.msg || "Error al editar");
+    }
+  },
+
+  exportar: () => {
+    window.location = "/exportar_verbos";
+  },
+  importar: async (file) => {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/importar_verbos", { method:"POST", body: fd });
+    const data = await res.json();
+    alert(data.msg || (data.ok ? "Importado" : "Error"));
+    if (data.ok) datos.listarVerbos();
+    document.getElementById("inputImport").value = "";
   }
 };
 
 // ===== PRÁCTICA =====
 const practica = {
   modo: "simple",      // simple | continuous | wh
-  whTipo: "traduccion",
+  whTipo: "traduccion",// 'traduccion' | 'oraciones'
   usuario: "invitado",
   tipo: "todos",
   cantidad: 10,
@@ -337,6 +386,12 @@ const practica = {
       boxLibre.classList.remove("hidden");
       const r = document.getElementById("respuesta");
       r.value=""; r.focus();
+      // Desactivar verificar si vacío
+      const btn = document.getElementById("btnVerificar");
+      const onInput = () => btn.disabled = (r.value.trim()==="");
+      r.removeEventListener("input", onInput);
+      r.addEventListener("input", onInput);
+      onInput();
     }
 
     document.getElementById("pillContador").textContent =
@@ -413,8 +468,7 @@ const practica = {
     modal.classList.remove("hidden");
     modal.style.display = "flex";
 
-    const btnVer = document.getElementById("btn-ver-verbos");
-    if (btnVer) btnVer.disabled = false;
+    document.getElementById("btn-ver-verbos").disabled = false;
   },
 
   _startTimer(){
@@ -429,6 +483,24 @@ const practica = {
   },
   _stopTimer(){ if (this.timerInt) clearInterval(this.timerInt); this.timerInt = null; }
 };
+
+// ===== Atajos =====
+document.addEventListener("keydown", (e)=>{
+  const inPlay = !document.getElementById("play").classList.contains("hidden");
+  if (!inPlay) return;
+  const boxOpc = document.getElementById("boxOpciones");
+  const isMCQ = !boxOpc.classList.contains("hidden");
+  if (isMCQ){
+    if (["1","2","3","4"].includes(e.key)) {
+      const idx = Number(e.key)-1;
+      const btn = boxOpc.querySelectorAll(".mc-option")[idx];
+      if (btn) btn.click();
+    }
+  } else {
+    if (e.key === "Enter") document.getElementById("btnVerificar").click();
+  }
+  if (e.key === "Escape") practica.finalizar();
+});
 
 // ===== Dark mode =====
 (function initDarkMode(){
