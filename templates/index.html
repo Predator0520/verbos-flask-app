@@ -21,7 +21,6 @@
         <button id="btn-ver-verbos" class="card btn-warning" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver Verbos</button>
         <button class="card btn-purple" onclick="ui.mostrar('agregar')">➕ Agregar Verbo</button>
       </div>
-
       <div class="bottom-cta">
         <button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarEstadisticas();">📈 Estadísticas</button>
       </div>
@@ -31,7 +30,7 @@
     <section id="setup" class="panel hidden">
       <h2>🧠 Configurar práctica</h2>
 
-      <!-- Paso 1: Usuario -->
+      <!-- Paso 1 -->
       <div id="step1">
         <div class="setup-block">
           <label>Tu nombre</label>
@@ -46,7 +45,7 @@
         </div>
       </div>
 
-      <!-- Paso 2: Tipo -->
+      <!-- Paso 2 -->
       <div id="step2" class="hidden">
         <div class="setup-block">
           <label>Tipo de verbos</label>
@@ -62,7 +61,7 @@
         </div>
       </div>
 
-      <!-- Paso 3: Cantidad -->
+      <!-- Paso 3 -->
       <div id="step3" class="hidden">
         <div class="setup-block">
           <label>Cantidad</label>
@@ -84,7 +83,7 @@
       </div>
     </section>
 
-    <!-- Ejecución de práctica -->
+    <!-- Ejecución -->
     <section id="play" class="panel hidden">
       <div class="header-row">
         <div class="pill" id="pillUsuario">👤 Invitado</div>
@@ -106,10 +105,10 @@
         <div class="pill" id="pillContador">0/0</div>
         <div class="pill" id="pillStreak">🔥 racha: 0</div>
         <button class="btn-cancel" onclick="practica.finalizar()">✖ Finalizar</button>
-        <button class="btn-ghost" onclick="ui.mostrar('menu');">← Menú</button>
+        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button>
       </div>
 
-      <!-- Resumen al finalizar -->
+      <!-- Resumen -->
       <div id="resumen" class="modal hidden">
         <div class="modal-content">
           <h3>📋 Resumen de la sesión</h3>
@@ -129,7 +128,7 @@
       </div>
     </section>
 
-    <!-- Lista de verbos -->
+    <!-- Lista -->
     <section id="lista" class="panel hidden">
       <h2>📝 Lista de Verbos</h2>
       <div class="hint">*Este listado se oculta cuando entras a práctica.</div>
@@ -139,7 +138,7 @@
       </div>
     </section>
 
-    <!-- Agregar verbo -->
+    <!-- Agregar -->
     <section id="agregar" class="panel hidden">
       <h2>➕ Agregar verbo</h2>
       <div class="grid">
@@ -160,17 +159,20 @@
 
     <!-- Estadísticas -->
     <section id="stats" class="panel hidden">
-      <h2>📈 Estadísticas</h2>
-      <div class="row">
-        <input type="text" id="filtroUsuario" placeholder="Filtrar por usuario (opcional)" />
-        <button class="btn" onclick="ui.cargarEstadisticas()">Buscar</button>
+      <div class="row" style="justify-content:space-between">
+        <h2>📈 Estadísticas</h2>
+        <div class="row">
+          <button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button>
+        </div>
       </div>
-      <canvas id="chartStats" height="160"></canvas>
-      <div id="tablaStats"></div>
 
       <div class="row">
-        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
+        <input type="text" id="filtroUsuario" placeholder="Filtrar por usuario (opcional)" />
+        <button class="btn" onclick="ui.cargarEstadisticas()">🔄 Refrescar</button>
       </div>
+
+      <canvas id="chartStats" height="160"></canvas>
+      <div id="tablaStats"></div>
     </section>
   </main>
 
