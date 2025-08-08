@@ -19,11 +19,9 @@
       <div class="cards">
         <button class="card btn-primary" onclick="practica.setModo('simple'); ui.mostrar('setup')">🟢 Práctica Simple Past</button>
         <button class="card btn-purple" onclick="practica.setModo('continuous'); ui.mostrar('setup')">🔵 Práctica Past Continuous</button>
-        <!-- WH ahora abre paso para elegir submodo -->
         <button class="card btn-warning" onclick="practica.setModo('wh'); ui.mostrar('setup')">🟣 Práctica WH Questions</button>
-
-        <button id="btn-ver-verbos" class="card btn-ghost" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver Verbos</button>
         <button class="card btn-purple" onclick="ui.mostrar('agregar')">➕ Agregar Verbo</button>
+        <button id="btn-ver-verbos" class="card btn-ghost" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver Verbos</button>
       </div>
       <div class="bottom-cta">
         <button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
@@ -52,7 +50,7 @@
            - wh: elegir submodo (traducción u oraciones)
       -->
       <div id="step2" class="hidden">
-        <!-- Contenido para simple/continuous -->
+        <!-- Para simple/continuous -->
         <div id="blockTipos" class="setup-block">
           <label>Tipo de verbos</label>
           <div class="row">
@@ -62,7 +60,7 @@
           </div>
         </div>
 
-        <!-- Contenido para WH -->
+        <!-- Para WH -->
         <div id="blockWH" class="setup-block hidden">
           <label>Modo WH</label>
           <div class="row">
@@ -110,13 +108,13 @@
 
       <div class="flashcard" id="pregunta">…</div>
 
-      <!-- Campo para respuesta libre -->
+      <!-- Input libre -->
       <div class="row" id="boxLibre">
         <input type="text" id="respuesta" placeholder="Tu respuesta aquí" />
-        <button class="btn" onclick="practica.verificar()">✅ Verificar</button>
+        <button class="btn" id="btnVerificar" onclick="practica.verificar()">✅ Verificar</button>
       </div>
 
-      <!-- Opciones múltiple -->
+      <!-- Opción múltiple -->
       <div id="boxOpciones" class="row hidden"></div>
 
       <div class="feedback" id="resultado"></div>
@@ -148,24 +146,34 @@
       </div>
     </section>
 
-    <!-- Lista -->
+    <!-- Lista de verbos -->
     <section id="lista" class="panel hidden">
-      <h2>📝 Lista de Verbos</h2>
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h2>📝 Lista de Verbos</h2>
+        <div class="row" style="gap:8px">
+          <button class="btn" onclick="datos.exportar()">⬇ Exportar</button>
+          <label class="btn" style="cursor:pointer">
+            ⬆ Importar
+            <input type="file" id="inputImport" accept="application/json" style="display:none" onchange="datos.importar(this.files[0])">
+          </label>
+          <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
+        </div>
+      </div>
+
       <div class="hint">*Este listado se oculta cuando entras a práctica.</div>
       <ul id="listaVerbos"></ul>
-      <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button></div>
     </section>
 
     <!-- Agregar -->
     <section id="agregar" class="panel hidden">
       <h2>➕ Agregar verbo</h2>
       <div class="grid">
-        <input type="text" id="nuevoPresente" placeholder="Presente (base form)" />
-        <input type="text" id="nuevoPasado" placeholder="Simple past" />
-        <input type="text" id="nuevaTraduccion" placeholder="Traducción (ES)" />
-        <input type="text" id="nuevaTraduccionPasado" placeholder="Traducción del pasado (ES)" />
-        <input type="text" id="nuevoContinuo" placeholder="Past continuous (EN) — opcional" />
-        <input type="text" id="nuevaTraduccionContinuo" placeholder="Traducción del pasado continuo (ES) — opcional" />
+        <input type="text" id="nuevoPresente" placeholder="Base form (presente) — ej: go" />
+        <input type="text" id="nuevoPasado" placeholder="Simple past — ej: went" />
+        <input type="text" id="nuevaTraduccion" placeholder="Traducción base (ES) — ej: ir" />
+        <input type="text" id="nuevaTraduccionPasado" placeholder="Traducción del pasado (ES) — ej: fui" />
+        <input type="text" id="nuevoContinuo" placeholder="Past continuous (EN) — opcional (se autocompleta)" />
+        <input type="text" id="nuevaTraduccionContinuo" placeholder="Traducción del past continuous (ES) — opcional" />
         <select id="nuevaCategoria">
           <option value="regular">Regular</option>
           <option value="irregular" selected>Irregular</option>
@@ -178,11 +186,14 @@
       <div id="mensajeAgregar" class="feedback"></div>
     </section>
 
-    <!-- Estadísticas con usuarios -->
+    <!-- Estadísticas -->
     <section id="stats" class="panel hidden">
-      <div class="row" style="justify-content:space-between">
+      <div class="row" style="justify-content:space-between;align-items:center">
         <h2>📈 Estadísticas</h2>
-        <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button></div>
+        <div class="row" style="gap:8px">
+          <button class="btn" onclick="window.location='/estadisticas_csv'">⬇ CSV</button>
+          <button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button>
+        </div>
       </div>
 
       <div class="stats-layout">
@@ -204,6 +215,29 @@
       </div>
     </section>
   </main>
+
+  <!-- Modal editar verbo -->
+  <div id="modalEdit" class="modal hidden">
+    <div class="modal-content">
+      <h3>✏️ Editar verbo</h3>
+      <div class="grid">
+        <input type="text" id="editPresente" placeholder="Base form" />
+        <input type="text" id="editPasado" placeholder="Simple past" />
+        <input type="text" id="editTraduccion" placeholder="Traducción base (ES)" />
+        <input type="text" id="editTraduccionPasado" placeholder="Traducción del pasado (ES)" />
+        <input type="text" id="editContinuo" placeholder="Past continuous (opcional)" />
+        <input type="text" id="editTraduccionContinuo" placeholder="Traducción del past continuous (opcional)" />
+        <select id="editCategoria">
+          <option value="regular">Regular</option>
+          <option value="irregular">Irregular</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn-cta" onclick="datos.confirmarEdicion()">💾 Guardar</button>
+        <button class="btn-cancel" onclick="datos.cerrarModal()">✖ Cancelar</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/script.js"></script>
 </body>
