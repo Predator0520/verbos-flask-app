@@ -1,4 +1,4 @@
-// ===== UI / Navegación =====
+// ===== UI =====
 const ui = {
   mostrar: (id) => {
     document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
@@ -9,62 +9,68 @@ const ui = {
     if(id==="setup") ui.irPaso(1);
   },
   irPaso: (n) => {
-    ["step1","step2","step3"].forEach(s => document.getElementById(s).classList.add("hidden"));
-    document.getElementById(`step${n}`).classList.remove("hidden");
+    ["step1","step2","step3"].forEach(s => {
+      const el = document.getElementById(s);
+      if (el) el.classList.add("hidden");
+    });
+    const step = document.getElementById(`step${n}`);
+    if (step) step.classList.remove("hidden");
   },
   cargarEstadisticas: async () => {
-    const usuario = document.getElementById("filtroUsuario").value.trim();
-    const url = usuario ? `/estadisticas?usuario=${encodeURIComponent(usuario)}` : "/estadisticas";
-    const res = await fetch(url);
-    const data = await res.json();
+    try{
+      const usuario = document.getElementById("filtroUsuario").value.trim();
+      const url = usuario ? `/estadisticas?usuario=${encodeURIComponent(usuario)}` : "/estadisticas";
+      const res = await fetch(url);
+      const data = await res.json();
 
-    // tabla
-    const tabla = document.getElementById("tablaStats");
-    if (!data.length) {
-      tabla.innerHTML = "<p>No hay resultados aún.</p>";
-    } else {
-      tabla.innerHTML = `
-        <table class="tabla">
-          <thead>
-            <tr><th>Fecha</th><th>Usuario</th><th>Tipo</th><th>Modo</th><th>Correctas</th><th>Incorrectas</th><th>%</th><th>Racha</th><th>Tiempo</th></tr>
-          </thead>
-          <tbody>
-            ${data.map(r => `
-              <tr>
-                <td>${new Date(r.fecha).toLocaleString()}</td>
-                <td>${r.usuario}</td>
-                <td>${r.tipo}</td>
-                <td>${r.limitado ? `limitado (${r.cantidad})` : "ilimitado"}</td>
-                <td>${r.correctas}</td>
-                <td>${r.incorrectas}</td>
-                <td>${r.porcentaje}%</td>
-                <td>${r.streak_max}</td>
-                <td>${Math.floor(r.duracion_segundos/60)}m ${r.duracion_segundos%60}s</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      `;
+      const tabla = document.getElementById("tablaStats");
+      if (!data.length) {
+        tabla.innerHTML = "<p>No hay resultados aún.</p>";
+      } else {
+        tabla.innerHTML = `
+          <table class="tabla">
+            <thead>
+              <tr><th>Fecha</th><th>Usuario</th><th>Tipo</th><th>Modo</th><th>Correctas</th><th>Incorrectas</th><th>%</th><th>Racha</th><th>Tiempo</th></tr>
+            </thead>
+            <tbody>
+              ${data.map(r => `
+                <tr>
+                  <td>${new Date(r.fecha).toLocaleString()}</td>
+                  <td>${r.usuario}</td>
+                  <td>${r.tipo}</td>
+                  <td>${r.limitado ? `limitado (${r.cantidad})` : "ilimitado"}</td>
+                  <td>${r.correctas}</td>
+                  <td>${r.incorrectas}</td>
+                  <td>${r.porcentaje}%</td>
+                  <td>${r.streak_max}</td>
+                  <td>${Math.floor(r.duracion_segundos/60)}m ${r.duracion_segundos%60}s</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+      }
+
+      const ctx = document.getElementById("chartStats");
+      if (window._chart) window._chart.destroy();
+      window._chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: data.map((_, i) => `#${i+1}`),
+          datasets: [
+            { label: "Correctas", data: data.map(r => r.correctas) },
+            { label: "Incorrectas", data: data.map(r => r.incorrectas) }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }catch(e){
+      document.getElementById("tablaStats").innerHTML = "<p>Error cargando estadísticas.</p>";
     }
-
-    // graf
-    const ctx = document.getElementById("chartStats");
-    if (window._chart) window._chart.destroy();
-    window._chart = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: data.map((_, i) => `#${i+1}`),
-        datasets: [
-          { label: "Correctas", data: data.map(r => r.correctas) },
-          { label: "Incorrectas", data: data.map(r => r.incorrectas) }
-        ]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
   }
 };
 
-// ===== VERBOS (CRUD) =====
+// ===== VERBOS =====
 const datos = {
   verbos: [],
   listarVerbos: async () => {
@@ -89,7 +95,6 @@ const datos = {
       ul.appendChild(li);
     });
 
-    // Delegación de eventos (edición / borrado)
     ul.querySelectorAll("button[data-action]").forEach(btn=>{
       btn.addEventListener("click", async (e)=>{
         const idx = Number(e.currentTarget.dataset.idx);
@@ -150,8 +155,8 @@ const practica = {
   usuario: "invitado",
   tipo: "todos",
   cantidad: 10,
-  limitado: true,
   ilimitado: false,
+
   preguntas: [],
   idx: 0,
   correctas: 0,
@@ -161,26 +166,21 @@ const practica = {
   startTs: 0,
   timerInt: null,
 
-  usarInvitado() {
-    this.usuario = "invitado";
-  },
-  setUsuario() {
-    const nombre = document.getElementById("nombreUsuario").value.trim();
-    this.usuario = nombre || "invitado";
-  },
-  setTipo(t) { this.tipo = t; document.getElementById("pillTipo").textContent = `Tipo: ${t}`; },
-  setCantidad(n) {
-    this.cantidad = n; this.ilimitado = false; this.limitado = true;
+  usarInvitado(){ this.usuario = "invitado"; },
+  setUsuario(){ this.usuario = (document.getElementById("nombreUsuario").value.trim() || "invitado"); },
+  setTipo(t){ this.tipo = t; document.getElementById("pillTipo").textContent = `Tipo: ${t}`; },
+  setCantidad(n){
+    this.cantidad = n; this.ilimitado = false;
     document.getElementById("cantidadActual").textContent = `Selección: ${n}`;
     document.getElementById("pillLimite").textContent = `Límite: ${n}`;
   },
-  setIlimitado() {
-    this.ilimitado = true; this.limitado = false;
+  setIlimitado(){
+    this.ilimitado = true;
     document.getElementById("cantidadActual").textContent = "Selección: Ilimitado";
     document.getElementById("pillLimite").textContent = "Límite: Ilimitado";
   },
 
-  async iniciar() {
+  async iniciar(){
     const res = await fetch("/preguntas", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
@@ -206,33 +206,30 @@ const practica = {
     this._pintarPregunta();
   },
 
-  _pintarPregunta() {
+  _pintarPregunta(){
     if (!this.ilimitado && this.idx >= this.preguntas.length) {
       this.finalizar();
       return;
     }
-    const q = this.preguntas[this.idx % this.preguntas.length]; // recicla en ilimitado
+    const q = this.preguntas[this.idx % this.preguntas.length];
     document.getElementById("pregunta").textContent = q.pregunta;
     const r = document.getElementById("respuesta");
-    r.value = "";
-    r.focus();
+    r.value=""; r.focus();
     document.getElementById("pillContador").textContent =
       `${Math.min(this.idx, this.preguntas.length)}/${this.ilimitado ? "∞" : this.preguntas.length}`;
   },
 
-  verificar() {
+  verificar(){
     const q = this.preguntas[this.idx % this.preguntas.length];
     const resp = (document.getElementById("respuesta").value || "").trim().toLowerCase();
     const ok = resp === q.respuesta.toLowerCase();
     const out = document.getElementById("resultado");
 
-    if (ok) {
+    if(ok){
       this.correctas++; this.streak++; this.streakMax = Math.max(this.streakMax, this.streak);
       out.textContent = "✅ ¡Correcto!";
-      if (this.streak && this.streak % 5 === 0) {
-        out.textContent += ` 🔥 Racha de ${this.streak}!`;
-      }
-    } else {
+      if (this.streak && this.streak % 5 === 0) out.textContent += ` 🔥 Racha de ${this.streak}!`;
+    }else{
       this.incorrectas++; this.streak = 0;
       out.textContent = `❌ Incorrecto. Era: ${q.respuesta}`;
     }
@@ -240,12 +237,19 @@ const practica = {
     this._pintarPregunta();
   },
 
-  finalizar() {
+  finalizar(){
     this._stopTimer();
+    const secs = Math.floor((Date.now() - this.startTs)/1000);
     const total = this.correctas + this.incorrectas;
-    const porcentaje = total ? ((this.correctas / total) * 100).toFixed(2) : "0.00";
+    const porcentaje = total ? ((this.correctas/total)*100).toFixed(2) : "0.00";
 
-    // Guarda resultado (async, no esperamos)
+    // Clasificador de modo (fácil/medio/difícil)
+    let modo = "fácil";
+    if (this.ilimitado || (!this.ilimitado && this.cantidad > 45)) modo = "difícil";
+    else if (!this.ilimitado && (this.cantidad === 30 || this.cantidad === 40)) modo = "medio";
+    // (10 o 20 -> fácil)
+
+    // Guardar (async)
     fetch("/guardar_resultado", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
@@ -257,39 +261,35 @@ const practica = {
         correctas: this.correctas,
         incorrectas: this.incorrectas,
         streak_max: this.streakMax,
-        duracion_segundos: Math.floor((Date.now() - this.startTs)/1000)
+        duracion_segundos: secs
       })
     });
 
-    // Muestra resumen (no abre stats)
+    // Resumen
     document.getElementById("rUsuario").textContent = this.usuario;
     document.getElementById("rTipo").textContent = this.tipo;
-    document.getElementById("rModo").textContent = this.ilimitado ? "ilimitado" : `limitado (${this.cantidad})`;
+    document.getElementById("rModo").textContent = modo;
     document.getElementById("rOk").textContent = this.correctas;
     document.getElementById("rBad").textContent = this.incorrectas;
     document.getElementById("rStreak").textContent = this.streakMax;
-    const secs = Math.floor((Date.now() - this.startTs)/1000);
     document.getElementById("rTiempo").textContent = `${Math.floor(secs/60)}m ${secs%60}s (${porcentaje}%)`;
     document.getElementById("resumen").classList.remove("hidden");
 
-    // re-habilitar ver verbos al salir del juego
+    // re-habilitar “Ver Verbos”
     document.getElementById("btn-ver-verbos").disabled = false;
   },
 
-  _startTimer() {
+  _startTimer(){
     const pill = document.getElementById("pillTimer");
     if (this.timerInt) clearInterval(this.timerInt);
-    this.timerInt = setInterval(() => {
+    this.timerInt = setInterval(()=>{
       const secs = Math.floor((Date.now() - this.startTs)/1000);
       const mm = String(Math.floor(secs/60)).padStart(2,"0");
       const ss = String(secs%60).padStart(2,"0");
       pill.textContent = `⏱ ${mm}:${ss}`;
     }, 1000);
   },
-  _stopTimer() {
-    if (this.timerInt) clearInterval(this.timerInt);
-    this.timerInt = null;
-  }
+  _stopTimer(){ if (this.timerInt) clearInterval(this.timerInt); this.timerInt = null; }
 };
 
 // ===== Modo oscuro persistente =====
@@ -302,9 +302,7 @@ const practica = {
   };
   const saved = localStorage.getItem("dark") === "1";
   apply(saved);
-  btn.addEventListener("click", () => {
-    apply(!document.body.classList.contains("dark"));
-  });
+  btn.addEventListener("click", () => apply(!document.body.classList.contains("dark")));
 })();
 
 // Inicio
