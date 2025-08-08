@@ -1,79 +1,142 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>App de Verbos</title>
-    <link rel="stylesheet" href="/static/styles.css">
+  <meta charset="UTF-8" />
+  <title>Práctica de Verbos</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <!-- Chart.js para gráficos de estadísticas -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
-    <header>
-        <h1>🎓 App de Verbos en Inglés</h1>
-        <button id="modoOscuro" class="modo-btn">🌙</button>
-    </header>
+<body class="navy">
+  <header class="topbar">
+    <h1>🎓 App de Verbos</h1>
+    <button id="btn-dark" class="mode-toggle" title="Modo oscuro/claro">🌙</button>
+  </header>
 
-    <main>
-        <div class="tarjetas">
-            <button class="card green" onclick="mostrarInicioPractica()">🎯 Práctica</button>
-            <button class="card orange" onclick="mostrarListaVerbos()">📄 Ver Verbos</button>
-            <button class="card purple" onclick="mostrarAgregarVerbo()">➕ Agregar Verbo</button>
+  <main>
+    <!-- Menú principal -->
+    <section id="menu" class="panel center">
+      <div class="cards">
+        <button class="card btn-primary" onclick="ui.mostrar('setup')">🎯 Práctica</button>
+        <button id="btn-ver-verbos" class="card btn-warning" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver Verbos</button>
+        <button class="card btn-purple" onclick="ui.mostrar('agregar')">➕ Agregar Verbo</button>
+      </div>
+
+      <div class="bottom-cta">
+        <button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarEstadisticas();">📈 Estadísticas</button>
+      </div>
+    </section>
+
+    <!-- Configuración de práctica -->
+    <section id="setup" class="panel hidden">
+      <h2>🧠 Configurar práctica</h2>
+
+      <div class="setup-block">
+        <label>Tu nombre</label>
+        <input type="text" id="nombreUsuario" placeholder="Escribe tu nombre (o deja vacío para invitado)" />
+        <div class="row">
+          <button class="btn" onclick="practica.setUsuario()">Usar nombre</button>
+          <button class="btn" onclick="practica.usarInvitado()">Entrar como Invitado</button>
         </div>
+      </div>
 
-        <!-- 📌 Sección Lista de Verbos -->
-        <section id="lista" class="oculto">
-            <h2>📋 Lista de Verbos</h2>
-            <ul id="listaVerbos"></ul>
-        </section>
+      <div class="setup-block">
+        <label>Tipo de verbos</label>
+        <div class="row">
+          <button class="btn-chip" onclick="practica.setTipo('regular')">Regulares</button>
+          <button class="btn-chip" onclick="practica.setTipo('irregular')">Irregulares</button>
+          <button class="btn-chip" onclick="practica.setTipo('todos')">Todos</button>
+        </div>
+      </div>
 
-        <!-- 📌 Sección Agregar Verbo -->
-        <section id="agregar" class="oculto">
-            <h2>➕ Agregar Verbo</h2>
-            <input type="text" id="presente" placeholder="Presente">
-            <input type="text" id="pasado" placeholder="Pasado">
-            <input type="text" id="traduccion" placeholder="Traducción">
-            <select id="tipoVerbo">
-                <option value="regular">Regular</option>
-                <option value="irregular">Irregular</option>
-            </select>
-            <button onclick="agregarVerbo()">Guardar</button>
-        </section>
+      <div class="setup-block">
+        <label>Cantidad</label>
+        <div id="cantidadBox" class="row">
+          <button class="btn-qty" onclick="practica.setCantidad(10)">10</button>
+          <button class="btn-qty" onclick="practica.setCantidad(20)">20</button>
+          <button class="btn-qty" onclick="practica.setCantidad(30)">30</button>
+          <button class="btn-qty" onclick="practica.setCantidad(40)">40</button>
+          <button class="btn-qty outline" onclick="practica.setIlimitado()">Ilimitado</button>
+        </div>
+        <small id="cantidadActual">Selección: 10</small>
+      </div>
 
-        <!-- 📌 Sección Práctica -->
-        <section id="practicaConfig" class="oculto">
-            <h2>Configurar Práctica</h2>
-            <input type="text" id="nombreUsuario" placeholder="Tu nombre">
-            <button onclick="modoInvitado()">Modo Invitado</button>
+      <div class="row">
+        <button class="btn-cta" onclick="practica.iniciar()">🚀 Iniciar práctica</button>
+        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
+      </div>
+    </section>
 
-            <h3>Selecciona tipo de verbos:</h3>
-            <button onclick="setTipo('regular')">Regulares</button>
-            <button onclick="setTipo('irregular')">Irregulares</button>
-            <button onclick="setTipo('todos')">Todos</button>
+    <!-- Ejecución de práctica -->
+    <section id="play" class="panel hidden">
+      <div class="header-row">
+        <div class="pill" id="pillUsuario">👤 Invitado</div>
+        <div class="pill" id="pillTipo">Tipo: todos</div>
+        <div class="pill" id="pillLimite">Límite: 10</div>
+        <div class="pill" id="pillTimer">⏱ 00:00</div>
+      </div>
 
-            <h3>Cantidad de verbos:</h3>
-            <div>
-                <span id="cantidad">10</span>
-                <button onclick="sumarCantidad()">+5</button>
-                <button onclick="setIlimitado()">Ilimitado</button>
-            </div>
-            <button onclick="iniciarPractica()">Iniciar</button>
-        </section>
+      <div class="flashcard" id="pregunta">…</div>
 
-        <!-- 📌 Sección Juego -->
-        <section id="juego" class="oculto">
-            <h2 id="pregunta"></h2>
-            <input type="text" id="respuesta">
-            <button onclick="verificar()">Verificar</button>
-            <p id="resultado"></p>
-            <button onclick="finalizarPractica()">Finalizar</button>
-        </section>
+      <div class="row">
+        <input type="text" id="respuesta" placeholder="Tu respuesta aquí" />
+        <button class="btn" onclick="practica.verificar()">✅ Verificar</button>
+      </div>
 
-        <!-- 📌 Sección Estadísticas -->
-        <section id="estadisticas" class="oculto">
-            <h2>Resultados</h2>
-            <p id="stats"></p>
-            <button onclick="volverMenu()">Volver al menú</button>
-        </section>
-    </main>
+      <div class="feedback" id="resultado"></div>
 
-    <script src="/static/script.js"></script>
+      <div class="footer-row">
+        <div class="pill" id="pillContador">0/0</div>
+        <div class="pill" id="pillStreak">🔥 racha: 0</div>
+        <button class="btn-cancel" onclick="practica.finalizar()">✖ Finalizar</button>
+      </div>
+    </section>
+
+    <!-- Lista de verbos -->
+    <section id="lista" class="panel hidden">
+      <h2>📝 Lista de Verbos</h2>
+      <div class="hint">*Este listado se oculta cuando entras a práctica.</div>
+      <ul id="listaVerbos"></ul>
+      <div class="row">
+        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
+      </div>
+    </section>
+
+    <!-- Agregar verbo -->
+    <section id="agregar" class="panel hidden">
+      <h2>➕ Agregar verbo</h2>
+      <div class="grid">
+        <input type="text" id="nuevoPresente" placeholder="Presente (base form)" />
+        <input type="text" id="nuevoPasado" placeholder="Simple past" />
+        <input type="text" id="nuevaTraduccion" placeholder="Traducción (ES)" />
+        <select id="nuevaCategoria">
+          <option value="regular">Regular</option>
+          <option value="irregular">Irregular</option>
+        </select>
+      </div>
+      <div class="row">
+        <button class="btn-cta" onclick="datos.agregar()">💾 Guardar</button>
+        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
+      </div>
+      <div id="mensajeAgregar" class="feedback"></div>
+    </section>
+
+    <!-- Estadísticas -->
+    <section id="stats" class="panel hidden">
+      <h2>📈 Estadísticas</h2>
+      <div class="row">
+        <input type="text" id="filtroUsuario" placeholder="Filtrar por usuario (opcional)" />
+        <button class="btn" onclick="ui.cargarEstadisticas()">Buscar</button>
+      </div>
+      <canvas id="chartStats" height="160"></canvas>
+      <div id="tablaStats"></div>
+
+      <div class="row">
+        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/script.js"></script>
 </body>
 </html>
