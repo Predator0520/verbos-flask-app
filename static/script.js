@@ -5,19 +5,13 @@ const hide = (id)=>{const m=document.getElementById(id); if(!m) return; m.classL
 // ===== UI =====
 const ui = {
   mostrar: (id) => {
-    // cierra modales si estaban abiertos
     hide("modalVerb"); hide("resumen");
-
-    // cambia sección
     ["menu","setup","play","lista","stats"].forEach(sec => {
       document.getElementById(sec).classList.add("hidden");
     });
     document.getElementById(id).classList.remove("hidden");
-
-    // deshabilita "Ver Verbos" cuando no corresponde
     document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
 
-    // prepara wizard
     if(id==="setup"){
       ui.irPaso(1);
       setTimeout(() => {
@@ -220,23 +214,43 @@ const datos = {
       traduccion_continuo: g("editTraduccionContinuo"),
       categoria: document.getElementById("editCategoria").value
     };
-    if (!payload.presente || !payload.pasado || !payload.traduccion || !payload.traduccion_pasado){
-      alert("Completa base, pasado y sus traducciones. (El continuo puede quedar vacío)");
-      payload.continuo = payload.continuo || "";
-      payload.traduccion_continuo = payload.traduccion_continuo || payload.traduccion_pasado || payload.traduccion;
+
+    // Validación mínima en el cliente
+    if (!payload.presente || !payload.pasado || !payload.traduccion){
+      alert("Completa: Base (presente), Pasado y Traducción base.");
+      return;
+    }
+    if (!payload.traduccion_pasado){
+      payload.traduccion_pasado = payload.traduccion;
     }
 
-    if (datos._mode === "add"){
-      const res = await fetch("/agregar_verbo", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
-      const data = await res.json();
-      if (!data.ok){ alert(data.msg || "Error al agregar"); return; }
-    }else{
-      const res = await fetch("/editar_verbo", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({index: datos._editIdx, verbo: payload}) });
-      const data = await res.json();
-      if (!data.ok){ alert(data.msg || "Error al editar"); return; }
+    let ok = false, msg = "Error";
+    try{
+      if (datos._mode === "add"){
+        const res = await fetch("/agregar_verbo", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        ok = !!data.ok; msg = data.msg || msg;
+      }else{
+        const res = await fetch("/editar_verbo", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({index: datos._editIdx, verbo: payload})
+        });
+        const data = await res.json();
+        ok = !!data.ok; msg = data.msg || msg;
+      }
+    }catch(e){
+      ok = false; msg = "No se pudo guardar. Revisa conexión.";
     }
+
+    if (!ok){ alert(msg); return; }
+
     hide("modalVerb");
-    if (!document.getElementById("lista").classList.contains("hidden")) datos.listarVerbos();
+    // Siempre mostramos la lista y refrescamos para ver el nuevo verbo enseguida
+    ui.mostrar('lista');
+    datos.listarVerbos();
   },
 
   exportar: ()=> window.location="/exportar_verbos",
@@ -246,7 +260,7 @@ const datos = {
     const res = await fetch("/importar_verbos",{method:"POST", body:fd});
     const data = await res.json();
     alert(data.msg || (data.ok?"Importado":"Error"));
-    if (data.ok) datos.listarVerbos();
+    if (data.ok) { ui.mostrar('lista'); datos.listarVerbos(); }
     document.getElementById("inputImport").value="";
   }
 };
@@ -291,7 +305,6 @@ const practica = {
         const res = await fetch("/preguntas_wh",{method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({cantidad: this.ilimitado?"ilimitado":this.cantidad})});
         arr = await res.json();
         if (this.whTipo === "oraciones"){
-          // Convertimos a opción múltiple en el cliente
           const allAnswers = arr.map(x=>x.respuesta);
           arr = arr.map(q=>{
             const correct = q.respuesta;
@@ -428,12 +441,9 @@ const practica = {
   _stopTimer(){ clearInterval(this.timerInt); this.timerInt=null; }
 };
 
-// ===== Atajos =====
+// Atajos teclado
 document.addEventListener("keydown",(e)=>{
-  // ESC cierra modales
   if (e.key==="Escape"){ hide("modalVerb"); hide("resumen"); }
-
-  // Enter verifica en modo libre
   const inPlay=!document.getElementById("play").classList.contains("hidden");
   if (inPlay){
     const isMCQ=!document.getElementById("boxOpciones").classList.contains("hidden");
@@ -446,7 +456,7 @@ document.addEventListener("keydown",(e)=>{
   }
 });
 
-// Dark mode con icono dinámico
+// Dark mode con icono ☀️/🌙
 (function(){
   const btn=document.getElementById("btn-dark");
   const apply=(dark)=>{
@@ -456,12 +466,11 @@ document.addEventListener("keydown",(e)=>{
     btn.setAttribute("aria-label", dark ? "Cambiar a claro" : "Cambiar a oscuro");
     btn.title = dark ? "Modo oscuro" : "Modo claro";
   };
-  // estado inicial
   const initialDark = (localStorage.getItem("dark")==="1");
   apply(initialDark);
   btn.onclick=()=>apply(!document.body.classList.contains("dark"));
 })();
- 
+
 // Inicio
 ui.mostrar("menu");
 
