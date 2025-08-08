@@ -167,8 +167,8 @@
   </main>
 
   <!-- Modal AGREGAR/EDITAR VERBO -->
-  <div id="modalVerb" class="modal hidden" onclick="datos.cerrarModalDesdeOverlay(event)">
-    <div class="modal-content" onclick="event.stopPropagation()">
+  <div id="modalVerb" class="modal hidden">
+    <div class="modal-content" role="dialog" aria-modal="true">
       <button class="close-x" aria-label="Cerrar" onclick="datos.cerrarModal()">✖</button>
       <h3 id="modalVerbTitle">✏️ Editar verbo</h3>
       <div class="grid">
