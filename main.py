@@ -113,10 +113,6 @@ def eliminar_verbo():
 # Generación de preguntas (por lote)
 @app.route("/preguntas", methods=["POST"])
 def preguntas():
-    """
-    Recibe: { tipo: 'regular'|'irregular'|'todos', cantidad: 10|15|...|40|'ilimitado' }
-    Devuelve: [ {pregunta, respuesta}, ... ]
-    """
     data = request.json or {}
     tipo = data.get("tipo", "todos")
     cantidad = data.get("cantidad", "ilimitado")
@@ -133,7 +129,6 @@ def preguntas():
     random.shuffle(pool)
     if isinstance(cantidad, int):
         pool = pool[:max(1, min(cantidad, 100))]  # límite de seguridad
-    # si es 'ilimitado' mandamos un set grande (se irá reciclando)
     if isinstance(cantidad, str) and cantidad == "ilimitado":
         pool = pool[:50] if len(pool) > 50 else pool
 
@@ -162,14 +157,7 @@ def preguntas():
 # Estadísticas
 @app.route("/guardar_resultado", methods=["POST"])
 def guardar_resultado():
-    """
-    Recibe: {
-      usuario, tipo, limitado (bool), cantidad (int|'ilimitado'),
-      correctas, incorrectas, streak_max, duracion_segundos
-    }
-    """
     data = request.json or {}
-    # Validación mínima
     necesario = ["usuario", "tipo", "limitado", "correctas", "incorrectas", "duracion_segundos"]
     if not all(k in data for k in necesario):
         return jsonify({"ok": False, "msg": "Datos incompletos"}), 400
@@ -197,9 +185,6 @@ def guardar_resultado():
 
 @app.route("/estadisticas", methods=["GET"])
 def estadisticas():
-    """
-    /estadisticas?usuario=nombre   (opcional)
-    """
     usuario = (request.args.get("usuario") or "").strip()
     stats = cargar_stats()
     if usuario:
@@ -208,5 +193,4 @@ def estadisticas():
 
 
 if __name__ == "__main__":
-    # Para Render usarás gunicorn main:app (ya lo tienes en render.yaml)
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
