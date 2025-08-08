@@ -1,8 +1,23 @@
+// Utilidades de modal (garantizan cierre 100%)
+function hideModalById(id){
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.add("hidden");
+  m.style.display = "none";
+}
+function showModalById(id){
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.style.display = "flex";
+  m.classList.remove("hidden");
+}
+
 // ===== UI =====
 const ui = {
   mostrar: (id) => {
-    const resumen = document.getElementById("resumen");
-    if (resumen) { resumen.classList.add("hidden"); resumen.style.display = "none"; }
+    hideModalById("modalVerb");
+    hideModalById("resumen");
+
     ["menu","setup","play","lista","stats"].forEach(sec => {
       document.getElementById(sec).classList.add("hidden");
     });
@@ -28,13 +43,9 @@ const ui = {
     ["step1","step2","step3"].forEach(s => document.getElementById(s).classList.add("hidden"));
     document.getElementById(`step${n}`).classList.remove("hidden");
   },
-  cerrarResumen: () => {
-    const modal = document.getElementById("resumen");
-    modal.classList.add("hidden");
-    modal.style.display = "none";
-  },
+  cerrarResumen: () => hideModalById("resumen"),
 
-  // ==== Usuarios (sidebar) ====
+  // ==== Usuarios ====
   cargarUsuarios: async () => {
     try{
       const res = await fetch("/usuarios");
@@ -122,7 +133,7 @@ const ui = {
 // ===== VERBOS =====
 const datos = {
   verbos: [],
-  _modalMode: "add",   // 'add' | 'edit'
+  _modalMode: "add",
   _editIndex: -1,
 
   listarVerbos: async () => {
@@ -180,7 +191,7 @@ const datos = {
       document.getElementById(id).value = "";
     });
     document.getElementById("editCategoria").value = "regular";
-    document.getElementById("modalVerb").classList.remove("hidden");
+    showModalById("modalVerb");
     setTimeout(()=>document.getElementById("editPresente").focus(),0);
   },
 
@@ -196,16 +207,11 @@ const datos = {
     document.getElementById("editContinuo").value = v.continuo || "";
     document.getElementById("editTraduccionContinuo").value = v.traduccion_continuo || "";
     document.getElementById("editCategoria").value = v.categoria || "regular";
-    document.getElementById("modalVerb").classList.remove("hidden");
+    showModalById("modalVerb");
     setTimeout(()=>document.getElementById("editPresente").focus(),0);
   },
 
-  cerrarModal: () => {
-    document.getElementById("modalVerb").classList.add("hidden");
-  },
-  cerrarModalDesdeOverlay: (e) => {
-    if (e.target.id === "modalVerb") datos.cerrarModal();
-  },
+  cerrarModal: () => hideModalById("modalVerb"),
 
   guardarModal: async () => {
     const g = (id)=>document.getElementById(id).value.trim().toLowerCase();
@@ -295,9 +301,7 @@ const practica = {
   },
 
   async iniciar(){
-    const resumen = document.getElementById("resumen");
-    if (resumen) { resumen.classList.add("hidden"); resumen.style.display = "none"; }
-
+    hideModalById("resumen");
     let arr = [];
     try{
       if (this.modo === "wh") {
@@ -332,8 +336,7 @@ const practica = {
     }
 
     this.preguntas = arr;
-    this.idx = 0; this.correctas = 0; this.incorrectas = 0;
-    this.streak = 0; this.streakMax = 0;
+    this.idx = this.correctas = this.incorrectas = this.streak = this.streakMax = 0;
     this.startTs = Date.now();
     this._startTimer();
 
@@ -459,10 +462,7 @@ const practica = {
     document.getElementById("rStreak").textContent = this.streakMax;
     document.getElementById("rTiempo").textContent = `${Math.floor(secs/60)}m ${secs%60}s (${porcentaje}%)`;
 
-    const modal = document.getElementById("resumen");
-    modal.classList.remove("hidden");
-    modal.style.display = "flex";
-
+    showModalById("resumen");
     document.getElementById("btn-ver-verbos").disabled = false;
   },
 
@@ -481,22 +481,16 @@ const practica = {
 
 // ===== Atajos =====
 document.addEventListener("keydown", (e)=>{
-  // Cerrar modales con ESC
-  const modalVerb = document.getElementById("modalVerb");
-  if (e.key === "Escape" && modalVerb && !modalVerb.classList.contains("hidden")) {
-    datos.cerrarModal();
-    return;
-  }
-  const resumen = document.getElementById("resumen");
-  if (e.key === "Escape" && resumen && !resumen.classList.contains("hidden")) {
-    ui.cerrarResumen();
-    return;
+  // Cerrar cualquier modal con ESC
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal").forEach(m => {
+      if (!m.classList.contains("hidden")) hideModalById(m.id);
+    });
   }
 
   // En práctica
   const inPlay = !document.getElementById("play").classList.contains("hidden");
   if (!inPlay) {
-    if (e.key === "Escape") ui.mostrar('menu');
     return;
   }
 
@@ -511,10 +505,19 @@ document.addEventListener("keydown", (e)=>{
   } else {
     if (e.key === "Enter") document.getElementById("btnVerificar").click();
   }
-  if (e.key === "Escape") practica.finalizar();
 });
 
-// ===== Dark mode =====
+// Cerrar modal si clicas fuera del contenido
+document.addEventListener("click", (e)=>{
+  const modal = document.getElementById("modalVerb");
+  if (!modal || modal.classList.contains("hidden")) return;
+  const content = modal.querySelector(".modal-content");
+  if (!content.contains(e.target) && modal.contains(e.target)) {
+    hideModalById("modalVerb");
+  }
+});
+
+// Dark mode
 (function initDarkMode(){
   const btn = document.getElementById("btn-dark");
   const apply = (dark) => {
