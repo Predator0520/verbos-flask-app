@@ -1,12 +1,16 @@
-// ===== Estado global =====
+// ===== UI / Navegación =====
 const ui = {
   mostrar: (id) => {
-    // Si entras a práctica, oculta/inhabilita Ver Verbos
     document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
     ["menu","setup","play","lista","agregar","stats"].forEach(sec => {
       document.getElementById(sec).classList.add("hidden");
     });
     document.getElementById(id).classList.remove("hidden");
+    if(id==="setup") ui.irPaso(1);
+  },
+  irPaso: (n) => {
+    ["step1","step2","step3"].forEach(s => document.getElementById(s).classList.add("hidden"));
+    document.getElementById(`step${n}`).classList.remove("hidden");
   },
   cargarEstadisticas: async () => {
     const usuario = document.getElementById("filtroUsuario").value.trim();
@@ -14,7 +18,7 @@ const ui = {
     const res = await fetch(url);
     const data = await res.json();
 
-    // tabla simple
+    // tabla
     const tabla = document.getElementById("tablaStats");
     if (!data.length) {
       tabla.innerHTML = "<p>No hay resultados aún.</p>";
@@ -43,13 +47,13 @@ const ui = {
       `;
     }
 
-    // gráfico: correctas vs incorrectas por sesión
+    // graf
     const ctx = document.getElementById("chartStats");
     if (window._chart) window._chart.destroy();
     window._chart = new Chart(ctx, {
       type: "bar",
       data: {
-        labels: data.map((r, i) => `#${i+1}`),
+        labels: data.map((_, i) => `#${i+1}`),
         datasets: [
           { label: "Correctas", data: data.map(r => r.correctas) },
           { label: "Incorrectas", data: data.map(r => r.incorrectas) }
@@ -60,6 +64,7 @@ const ui = {
   }
 };
 
+// ===== VERBOS (CRUD) =====
 const datos = {
   verbos: [],
   listarVerbos: async () => {
@@ -78,10 +83,42 @@ const datos = {
       li.innerHTML = `
         <span class="badge ${v.categoria}">${v.categoria}</span>
         <span class="verb">${v.presente} – ${v.pasado} – ${v.traduccion}</span>
-        <button class="mini" onclick="datos.editar(${idx})">✏️</button>
-        <button class="mini danger" onclick="datos.eliminar(${idx})">🗑️</button>
+        <button class="mini" type="button" data-idx="${idx}" data-action="edit">✏️</button>
+        <button class="mini danger" type="button" data-idx="${idx}" data-action="del">🗑️</button>
       `;
       ul.appendChild(li);
+    });
+
+    // Delegación de eventos (edición / borrado)
+    ul.querySelectorAll("button[data-action]").forEach(btn=>{
+      btn.addEventListener("click", async (e)=>{
+        const idx = Number(e.currentTarget.dataset.idx);
+        const action = e.currentTarget.dataset.action;
+        if (action === "edit") {
+          const v = datos.verbos[idx];
+          const nuevo = prompt("Editar: presente,pasado,traducción,categoria", `${v.presente},${v.pasado},${v.traduccion},${v.categoria}`);
+          if (!nuevo) return;
+          const [presente, pasado, traduccion, categoria] = nuevo.split(",").map(s => (s||"").trim());
+          const res = await fetch("/editar_verbo", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({index: idx, verbo: {presente, pasado, traduccion, categoria}})
+          });
+          const data = await res.json();
+          if (data.ok) datos.listarVerbos();
+          else alert(data.msg || "Error al editar");
+        } else {
+          if (!confirm("¿Eliminar verbo?")) return;
+          const res = await fetch("/eliminar_verbo", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({index: idx})
+          });
+          const data = await res.json();
+          if (data.ok) datos.listarVerbos();
+          else alert(data.msg || "Error al eliminar");
+        }
+      });
     });
   },
   agregar: async () => {
@@ -104,36 +141,11 @@ const datos = {
       document.getElementById("nuevoPresente").value = "";
       document.getElementById("nuevoPasado").value = "";
       document.getElementById("nuevaTraduccion").value = "";
-      datos.listarVerbos();
     }
-  },
-  editar: async (index) => {
-    const v = datos.verbos[index];
-    const nuevo = prompt("Editar: presente,pasado,traducción,categoria", `${v.presente},${v.pasado},${v.traduccion},${v.categoria}`);
-    if (!nuevo) return;
-    const [presente, pasado, traduccion, categoria] = nuevo.split(",").map(s => s.trim());
-    const res = await fetch("/editar_verbo", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({index, verbo: {presente, pasado, traduccion, categoria}})
-    });
-    const data = await res.json();
-    if (data.ok) datos.listarVerbos();
-  },
-  eliminar: async (index) => {
-    if (!confirm("¿Eliminar verbo?")) return;
-    const res = await fetch("/eliminar_verbo", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({index})
-    });
-    const data = await res.json();
-    if (data.ok) datos.listarVerbos();
   }
 };
 
-
-// ===== Lógica de práctica =====
+// ===== PRÁCTICA =====
 const practica = {
   usuario: "invitado",
   tipo: "todos",
@@ -151,12 +163,10 @@ const practica = {
 
   usarInvitado() {
     this.usuario = "invitado";
-    alert("Entraste como invitado.");
   },
   setUsuario() {
     const nombre = document.getElementById("nombreUsuario").value.trim();
     this.usuario = nombre || "invitado";
-    alert(`Usuario: ${this.usuario}`);
   },
   setTipo(t) { this.tipo = t; document.getElementById("pillTipo").textContent = `Tipo: ${t}`; },
   setCantidad(n) {
@@ -171,7 +181,6 @@ const practica = {
   },
 
   async iniciar() {
-    // Preguntas
     const res = await fetch("/preguntas", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
@@ -181,15 +190,11 @@ const practica = {
       })
     });
     this.preguntas = await res.json();
-    this.idx = 0;
-    this.correctas = 0;
-    this.incorrectas = 0;
-    this.streak = 0;
-    this.streakMax = 0;
+    this.idx = 0; this.correctas = 0; this.incorrectas = 0;
+    this.streak = 0; this.streakMax = 0;
     this.startTs = Date.now();
     this._startTimer();
 
-    // UI
     document.getElementById("pillUsuario").textContent = `👤 ${this.usuario}`;
     document.getElementById("pillTipo").textContent = `Tipo: ${this.tipo}`;
     document.getElementById("pillLimite").textContent = `Límite: ${this.ilimitado ? "Ilimitado" : this.cantidad}`;
@@ -199,8 +204,6 @@ const practica = {
 
     ui.mostrar("play");
     this._pintarPregunta();
-    // ocultar listado mientras practicas
-    document.getElementById("btn-ver-verbos").disabled = true;
   },
 
   _pintarPregunta() {
@@ -210,7 +213,9 @@ const practica = {
     }
     const q = this.preguntas[this.idx % this.preguntas.length]; // recicla en ilimitado
     document.getElementById("pregunta").textContent = q.pregunta;
-    document.getElementById("respuesta").value = "";
+    const r = document.getElementById("respuesta");
+    r.value = "";
+    r.focus();
     document.getElementById("pillContador").textContent =
       `${Math.min(this.idx, this.preguntas.length)}/${this.ilimitado ? "∞" : this.preguntas.length}`;
   },
@@ -239,7 +244,8 @@ const practica = {
     this._stopTimer();
     const total = this.correctas + this.incorrectas;
     const porcentaje = total ? ((this.correctas / total) * 100).toFixed(2) : "0.00";
-    // Guardar resultado
+
+    // Guarda resultado (async, no esperamos)
     fetch("/guardar_resultado", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
@@ -255,12 +261,18 @@ const practica = {
       })
     });
 
-    // Ir a stats filtrando por el usuario actual
-    document.getElementById("filtroUsuario").value = this.usuario;
-    ui.mostrar("stats");
-    ui.cargarEstadisticas();
+    // Muestra resumen (no abre stats)
+    document.getElementById("rUsuario").textContent = this.usuario;
+    document.getElementById("rTipo").textContent = this.tipo;
+    document.getElementById("rModo").textContent = this.ilimitado ? "ilimitado" : `limitado (${this.cantidad})`;
+    document.getElementById("rOk").textContent = this.correctas;
+    document.getElementById("rBad").textContent = this.incorrectas;
+    document.getElementById("rStreak").textContent = this.streakMax;
+    const secs = Math.floor((Date.now() - this.startTs)/1000);
+    document.getElementById("rTiempo").textContent = `${Math.floor(secs/60)}m ${secs%60}s (${porcentaje}%)`;
+    document.getElementById("resumen").classList.remove("hidden");
 
-    // re-habilitar ver verbos
+    // re-habilitar ver verbos al salir del juego
     document.getElementById("btn-ver-verbos").disabled = false;
   },
 
@@ -279,7 +291,6 @@ const practica = {
     this.timerInt = null;
   }
 };
-
 
 // ===== Modo oscuro persistente =====
 (function initDarkMode(){
