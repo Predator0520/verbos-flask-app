@@ -11,7 +11,13 @@ const ui = {
     });
     document.getElementById(id).classList.remove("hidden");
 
-    if(id==="setup") ui.irPaso(1);
+    if(id==="setup"){
+      ui.irPaso(1);
+      document.getElementById("setupTitle").textContent =
+        practica.modo==='simple' ? "🧠 Configurar: Simple Past" :
+        practica.modo==='continuous' ? "🧠 Configurar: Past Continuous" :
+        "🧠 Configurar: WH Questions";
+    }
   },
   irPaso: (n) => {
     ["step1","step2","step3"].forEach(s => {
@@ -125,7 +131,10 @@ const datos = {
       const li = document.createElement("li");
       li.innerHTML = `
         <span class="badge ${v.categoria}">${v.categoria}</span>
-        <span class="verb">${v.presente} – ${v.pasado} – ${v.traduccion} / ${v.traduccion_pasado}</span>
+        <span class="verb">
+          ${v.presente} – ${v.pasado} – ${v.continuo} –
+          ${v.traduccion} / ${v.traduccion_pasado} / ${v.traduccion_continuo}
+        </span>
         <button class="mini" type="button" data-idx="${idx}" data-action="edit">✏️</button>
         <button class="mini danger" type="button" data-idx="${idx}" data-action="del">🗑️</button>
       `;
@@ -139,16 +148,16 @@ const datos = {
         if (action === "edit") {
           const v = datos.verbos[idx];
           const nuevo = prompt(
-            "Editar: presente,pasado,traducción,trad. pasado,categoria",
-            `${v.presente},${v.pasado},${v.traduccion},${v.traduccion_pasado},${v.categoria}`
+            "Editar: presente,pasado,traducción,trad. pasado,continuo,trad. continuo,categoria",
+            `${v.presente},${v.pasado},${v.traduccion},${v.traduccion_pasado},${v.continuo},${v.traduccion_continuo},${v.categoria}`
           );
           if (!nuevo) return;
-          const [presente, pasado, traduccion, traduccion_pasado, categoria] =
+          const [presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria] =
             nuevo.split(",").map(s => (s||"").trim());
           const res = await fetch("/editar_verbo", {
             method: "POST",
             headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({index: idx, verbo: {presente, pasado, traduccion, traduccion_pasado, categoria}})
+            body: JSON.stringify({index: idx, verbo: {presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria}})
           });
           const data = await res.json();
           if (data.ok) datos.listarVerbos();
@@ -172,29 +181,30 @@ const datos = {
     const pasado = document.getElementById("nuevoPasado").value.trim();
     const traduccion = document.getElementById("nuevaTraduccion").value.trim();
     const traduccion_pasado = document.getElementById("nuevaTraduccionPasado").value.trim();
+    const continuo = document.getElementById("nuevoContinuo").value.trim();
+    const traduccion_continuo = document.getElementById("nuevaTraduccionContinuo").value.trim();
     const categoria = document.getElementById("nuevaCategoria").value;
-    if (!presente || !pasado || !traduccion || !traduccion_pasado) {
+    if (!presente || !pasado || !traduccion || !traduccion_pasado || !continuo || !traduccion_continuo) {
       document.getElementById("mensajeAgregar").textContent = "⚠️ Todos los campos son obligatorios.";
       return;
     }
     const res = await fetch("/agregar_verbo", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({presente, pasado, traduccion, traduccion_pasado, categoria})
+      body: JSON.stringify({presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria})
     });
     const data = await res.json();
     document.getElementById("mensajeAgregar").textContent = data.msg || (data.ok ? "Guardado" : "Error");
     if (data.ok) {
-      document.getElementById("nuevoPresente").value = "";
-      document.getElementById("nuevoPasado").value = "";
-      document.getElementById("nuevaTraduccion").value = "";
-      document.getElementById("nuevaTraduccionPasado").value = "";
+      ["nuevoPresente","nuevoPasado","nuevaTraduccion","nuevaTraduccionPasado","nuevoContinuo","nuevaTraduccionContinuo"]
+        .forEach(id => document.getElementById(id).value = "");
     }
   }
 };
 
 // ===== PRÁCTICA =====
 const practica = {
+  modo: "simple",      // simple | continuous | wh
   usuario: "invitado",
   tipo: "todos",
   cantidad: 10,
@@ -209,9 +219,10 @@ const practica = {
   startTs: 0,
   timerInt: null,
 
+  setModo(m){ this.modo = m; },
   usarInvitado(){ this.usuario = "invitado"; },
   setUsuario(){ this.usuario = (document.getElementById("nombreUsuario").value.trim() || "invitado"); },
-  setTipo(t){ this.tipo = t; document.getElementById("pillTipo").textContent = `Tipo: ${t}`; },
+  setTipo(t){ this.tipo = t; },
   setCantidad(n){
     this.cantidad = n; this.ilimitado = false;
     document.getElementById("cantidadActual").textContent = `Selección: ${n}`;
@@ -229,23 +240,35 @@ const practica = {
 
     let arr = [];
     try{
-      const res = await fetch("/preguntas", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({
-          tipo: this.tipo,
-          cantidad: this.ilimitado ? "ilimitado" : this.cantidad
-        })
-      });
-      arr = await res.json();
+      if (this.modo === "wh") {
+        const res = await fetch("/preguntas_wh", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({
+            cantidad: this.ilimitado ? "ilimitado" : this.cantidad
+          })
+        });
+        arr = await res.json();
+      } else {
+        const res = await fetch("/preguntas", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({
+            modo: this.modo,
+            tipo: this.tipo,
+            cantidad: this.ilimitado ? "ilimitado" : this.cantidad
+          })
+        });
+        arr = await res.json();
+      }
     }catch(e){
       alert("No se pudieron cargar las preguntas. Intenta de nuevo.");
       return;
     }
 
     if (!Array.isArray(arr) || arr.length === 0){
-      alert("No hay preguntas para ese tipo de verbo. Agrega verbos o cambia el filtro.");
-      ui.mostrar("setup"); ui.irPaso(2);
+      alert("No hay preguntas para ese modo/filtro. Agrega verbos o cambia el filtro.");
+      ui.mostrar("setup"); ui.irPaso(this.modo==='wh'?1:2);
       return;
     }
 
@@ -256,7 +279,8 @@ const practica = {
     this._startTimer();
 
     document.getElementById("pillUsuario").textContent = `👤 ${this.usuario}`;
-    document.getElementById("pillTipo").textContent = `Tipo: ${this.tipo}`;
+    document.getElementById("pillModo").textContent = `Modo: ${this.modo}`;
+    document.getElementById("pillTipo").textContent = this.modo==='wh' ? "Tipo: —" : `Tipo: ${this.tipo}`;
     document.getElementById("pillLimite").textContent = `Límite: ${this.ilimitado ? "Ilimitado" : this.cantidad}`;
     document.getElementById("pillContador").textContent = `0/${this.ilimitado ? "∞" : this.preguntas.length}`;
     document.getElementById("pillStreak").textContent = `🔥 racha: 0`;
@@ -280,27 +304,18 @@ const practica = {
   },
 
   verificar(){
-    // normalizador: quita tildes/espacios extra y pasa a minúsculas
-    const norm = (s) => (s ?? "")
-      .toString()
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+    const norm = (s) => (s ?? "").toString().trim().toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     const q = this.preguntas[this.idx % this.preguntas.length];
     const resp = norm(document.getElementById("respuesta").value || "");
     const expected = q.respuesta;
 
     let ok = false;
-    if (Array.isArray(expected)) {
-      ok = expected.some(ans => norm(ans) === resp);
-    } else {
-      ok = norm(expected) === resp;
-    }
+    if (Array.isArray(expected)) ok = expected.some(ans => norm(ans) === resp);
+    else ok = norm(expected) === resp;
 
     const out = document.getElementById("resultado");
-
     if(ok){
       this.correctas++; this.streak++; this.streakMax = Math.max(this.streakMax, this.streak);
       out.textContent = "✅ ¡Correcto!";
@@ -319,18 +334,17 @@ const practica = {
     const total = this.correctas + this.incorrectas;
     const porcentaje = total ? ((this.correctas/total)*100).toFixed(2) : "0.00";
 
-    let modo = "fácil";
-    if (this.ilimitado || (!this.ilimitado && this.cantidad > 45)) modo = "difícil";
-    else if (!this.ilimitado && (this.cantidad === 30 || this.cantidad === 40)) modo = "medio";
+    let modoText = this.modo;
+    let limiteText = this.ilimitado ? "ilimitado" : this.cantidad;
 
     fetch("/guardar_resultado", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({
         usuario: this.usuario,
-        tipo: this.tipo,
+        tipo: this.modo,                  // guardamos modo aquí
         limitado: !this.ilimitado,
-        cantidad: this.ilimitado ? "ilimitado" : this.cantidad,
+        cantidad: limiteText,
         correctas: this.correctas,
         incorrectas: this.incorrectas,
         streak_max: this.streakMax,
@@ -339,8 +353,8 @@ const practica = {
     });
 
     document.getElementById("rUsuario").textContent = this.usuario;
-    document.getElementById("rTipo").textContent = this.tipo;
-    document.getElementById("rModo").textContent = modo;
+    document.getElementById("rModo").textContent = modoText;
+    document.getElementById("rTipo").textContent = (this.modo==='wh' ? "—" : this.tipo);
     document.getElementById("rOk").textContent = this.correctas;
     document.getElementById("rBad").textContent = this.incorrectas;
     document.getElementById("rStreak").textContent = this.streakMax;
