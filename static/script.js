@@ -13,6 +13,13 @@ const ui = {
 
     if(id==="setup"){
       ui.irPaso(1);
+      // Cuando es WH, en el paso 2 mostramos el selector de sub-modo; caso contrario, el selector de tipo
+      setTimeout(() => {
+        const showWH = (practica.modo === 'wh');
+        document.getElementById("blockWH").classList.toggle("hidden", !showWH);
+        document.getElementById("blockTipos").classList.toggle("hidden", showWH);
+      }, 0);
+
       document.getElementById("setupTitle").textContent =
         practica.modo==='simple' ? "🧠 Configurar: Simple Past" :
         practica.modo==='continuous' ? "🧠 Configurar: Past Continuous" :
@@ -67,7 +74,7 @@ const ui = {
         tabla.innerHTML = `
           <table class="tabla">
             <thead>
-              <tr><th>Fecha</th><th>Usuario</th><th>Tipo</th><th>Modo</th><th>Correctas</th><th>Incorrectas</th><th>%</th><th>Racha</th><th>Tiempo</th></tr>
+              <tr><th>Fecha</th><th>Usuario</th><th>Modo</th><th>Límite</th><th>Correctas</th><th>Incorrectas</th><th>%</th><th>Racha</th><th>Tiempo</th></tr>
             </thead>
             <tbody>
               ${data.map(r => `
@@ -132,8 +139,8 @@ const datos = {
       li.innerHTML = `
         <span class="badge ${v.categoria}">${v.categoria}</span>
         <span class="verb">
-          ${v.presente} – ${v.pasado} – ${v.continuo} –
-          ${v.traduccion} / ${v.traduccion_pasado} / ${v.traduccion_continuo}
+          ${v.presente} – ${v.pasado} – ${v.continuo||'<i>no definido</i>'} –
+          ${v.traduccion} / ${v.traduccion_pasado} / ${v.traduccion_continuo||'<i>no definido</i>'}
         </span>
         <button class="mini" type="button" data-idx="${idx}" data-action="edit">✏️</button>
         <button class="mini danger" type="button" data-idx="${idx}" data-action="del">🗑️</button>
@@ -149,7 +156,7 @@ const datos = {
           const v = datos.verbos[idx];
           const nuevo = prompt(
             "Editar: presente,pasado,traducción,trad. pasado,continuo,trad. continuo,categoria",
-            `${v.presente},${v.pasado},${v.traduccion},${v.traduccion_pasado},${v.continuo},${v.traduccion_continuo},${v.categoria}`
+            `${v.presente},${v.pasado},${v.traduccion},${v.traduccion_pasado},${v.continuo||""},${v.traduccion_continuo||""},${v.categoria}`
           );
           if (!nuevo) return;
           const [presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria] =
@@ -205,6 +212,7 @@ const datos = {
 // ===== PRÁCTICA =====
 const practica = {
   modo: "simple",      // simple | continuous | wh
+  whTipo: "traduccion",// 'traduccion' | 'oraciones' (solo cuando modo==='wh')
   usuario: "invitado",
   tipo: "todos",
   cantidad: 10,
@@ -220,6 +228,7 @@ const practica = {
   timerInt: null,
 
   setModo(m){ this.modo = m; },
+  setWHTipo(t){ this.whTipo = t; },
   usarInvitado(){ this.usuario = "invitado"; },
   setUsuario(){ this.usuario = (document.getElementById("nombreUsuario").value.trim() || "invitado"); },
   setTipo(t){ this.tipo = t; },
@@ -241,14 +250,25 @@ const practica = {
     let arr = [];
     try{
       if (this.modo === "wh") {
-        const res = await fetch("/preguntas_wh", {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({
-            cantidad: this.ilimitado ? "ilimitado" : this.cantidad
-          })
-        });
-        arr = await res.json();
+        if (this.whTipo === "traduccion"){
+          const res = await fetch("/preguntas_wh", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({
+              cantidad: this.ilimitado ? "ilimitado" : this.cantidad
+            })
+          });
+          arr = await res.json();
+        } else {
+          const res = await fetch("/preguntas_wh_oraciones", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({
+              cantidad: this.ilimitado ? "ilimitado" : this.cantidad
+            })
+          });
+          arr = await res.json();
+        }
       } else {
         const res = await fetch("/preguntas", {
           method: "POST",
@@ -268,7 +288,7 @@ const practica = {
 
     if (!Array.isArray(arr) || arr.length === 0){
       alert("No hay preguntas para ese modo/filtro. Agrega verbos o cambia el filtro.");
-      ui.mostrar("setup"); ui.irPaso(this.modo==='wh'?1:2);
+      ui.mostrar("setup"); ui.irPaso(2);
       return;
     }
 
@@ -279,8 +299,9 @@ const practica = {
     this._startTimer();
 
     document.getElementById("pillUsuario").textContent = `👤 ${this.usuario}`;
-    document.getElementById("pillModo").textContent = `Modo: ${this.modo}`;
-    document.getElementById("pillTipo").textContent = this.modo==='wh' ? "Tipo: —" : `Tipo: ${this.tipo}`;
+    const modoText = (this.modo==='wh' ? `wh/${this.whTipo}` : this.modo);
+    document.getElementById("pillModo").textContent = `Modo: ${modoText}`;
+    document.getElementById("pillTipo").textContent = (this.modo==='wh' ? "Tipo: —" : `Tipo: ${this.tipo}`);
     document.getElementById("pillLimite").textContent = `Límite: ${this.ilimitado ? "Ilimitado" : this.cantidad}`;
     document.getElementById("pillContador").textContent = `0/${this.ilimitado ? "∞" : this.preguntas.length}`;
     document.getElementById("pillStreak").textContent = `🔥 racha: 0`;
@@ -290,15 +311,41 @@ const practica = {
     this._pintarPregunta();
   },
 
+  _renderOpciones(opciones) {
+    const boxOpc = document.getElementById("boxOpciones");
+    boxOpc.innerHTML = "";
+    opciones.forEach((op, i) => {
+      const b = document.createElement("button");
+      b.className = "mc-option";
+      b.textContent = op;
+      b.onclick = () => this.verificarOpcion(i);
+      boxOpc.appendChild(b);
+    });
+  },
+
   _pintarPregunta(){
+    const boxLibre = document.getElementById("boxLibre");
+    const boxOpc = document.getElementById("boxOpciones");
+
     if (!this.ilimitado && this.idx >= this.preguntas.length) {
       this.finalizar();
       return;
     }
     const q = this.preguntas[this.idx % this.preguntas.length];
     document.getElementById("pregunta").textContent = q.pregunta;
-    const r = document.getElementById("respuesta");
-    r.value=""; r.focus();
+
+    // Si la pregunta trae opciones -> múltiple choice
+    if (Array.isArray(q.opciones)) {
+      boxLibre.classList.add("hidden");
+      boxOpc.classList.remove("hidden");
+      this._renderOpciones(q.opciones);
+    } else {
+      boxOpc.classList.add("hidden");
+      boxLibre.classList.remove("hidden");
+      const r = document.getElementById("respuesta");
+      r.value=""; r.focus();
+    }
+
     document.getElementById("pillContador").textContent =
       `${Math.min(this.idx, this.preguntas.length)}/${this.ilimitado ? "∞" : this.preguntas.length}`;
   },
@@ -315,6 +362,16 @@ const practica = {
     if (Array.isArray(expected)) ok = expected.some(ans => norm(ans) === resp);
     else ok = norm(expected) === resp;
 
+    this._postVerificacion(ok, q);
+  },
+
+  verificarOpcion(iSel){
+    const q = this.preguntas[this.idx % this.preguntas.length];
+    const ok = (iSel === q.correcta);
+    this._postVerificacion(ok, q);
+  },
+
+  _postVerificacion(ok, q){
     const out = document.getElementById("resultado");
     if(ok){
       this.correctas++; this.streak++; this.streakMax = Math.max(this.streakMax, this.streak);
@@ -322,7 +379,10 @@ const practica = {
       if (this.streak && this.streak % 5 === 0) out.textContent += ` 🔥 Racha de ${this.streak}!`;
     }else{
       this.incorrectas++; this.streak = 0;
-      out.textContent = `❌ Incorrecto. Era: ${Array.isArray(expected) ? expected[0] : expected}`;
+      const exp = Array.isArray(q.respuesta) ? q.respuesta[0] :
+                  (typeof q.respuesta === "string" ? q.respuesta :
+                   (Number.isInteger(q.correcta) ? q.opciones[q.correcta] : ""));
+      out.textContent = `❌ Incorrecto. Era: ${exp}`;
     }
     this.idx++;
     this._pintarPregunta();
@@ -334,15 +394,15 @@ const practica = {
     const total = this.correctas + this.incorrectas;
     const porcentaje = total ? ((this.correctas/total)*100).toFixed(2) : "0.00";
 
-    let modoText = this.modo;
-    let limiteText = this.ilimitado ? "ilimitado" : this.cantidad;
+    const modoText = (this.modo==='wh' ? `wh/${this.whTipo}` : this.modo);
+    const limiteText = this.ilimitado ? "ilimitado" : this.cantidad;
 
     fetch("/guardar_resultado", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({
         usuario: this.usuario,
-        tipo: this.modo,                  // guardamos modo aquí
+        tipo: modoText,              // guardamos modo/submodo aquí
         limitado: !this.ilimitado,
         cantidad: limiteText,
         correctas: this.correctas,
