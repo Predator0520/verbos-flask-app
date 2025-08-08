@@ -4,7 +4,8 @@ const ui = {
     const modal = document.getElementById("resumen");
     if (modal) { modal.classList.add("hidden"); modal.style.display = "none"; }
 
-    document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
+    const btnVer = document.getElementById("btn-ver-verbos");
+    if (btnVer) btnVer.disabled = (id === "play" || id === "setup");
 
     ["menu","setup","play","lista","agregar","stats"].forEach(sec => {
       document.getElementById(sec).classList.add("hidden");
@@ -191,8 +192,8 @@ const datos = {
     const pasado = document.getElementById("nuevoPasado").value.trim();
     const traduccion = document.getElementById("nuevaTraduccion").value.trim();
     const traduccion_pasado = document.getElementById("nuevaTraduccionPasado").value.trim();
-    const continuo = document.getElementById("nuevoContinuo").value.trim(); // ahora OPCIONAL
-    const traduccion_continuo = document.getElementById("nuevaTraduccionContinuo").value.trim(); // ahora OPCIONAL
+    const continuo = document.getElementById("nuevoContinuo").value.trim(); // ahora OPCIONAL (autocompletable)
+    const traduccion_continuo = document.getElementById("nuevaTraduccionContinuo").value.trim(); // OPCIONAL
     const categoria = document.getElementById("nuevaCategoria").value;
 
     if (!presente || !pasado || !traduccion || !traduccion_pasado) {
@@ -412,7 +413,8 @@ const practica = {
     modal.classList.remove("hidden");
     modal.style.display = "flex";
 
-    document.getElementById("btn-ver-verbos").disabled = false;
+    const btnVer = document.getElementById("btn-ver-verbos");
+    if (btnVer) btnVer.disabled = false;
   },
 
   _startTimer(){
