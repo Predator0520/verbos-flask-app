@@ -17,13 +17,12 @@
     <!-- Menú -->
     <section id="menu" class="panel center">
       <div class="cards">
-        <button class="card btn-primary" onclick="practica.setModo('simple_past'); ui.mostrar('setup')">🎯 Práctica Simple Past</button>
-        <button class="card btn-warning" onclick="practica.setModo('past_continuous'); ui.mostrar('setup')">⏳ Pasado Continuo</button>
-        <button class="card btn-purple" onclick="practica.setModo('wh'); ui.mostrar('setup')">❓ WH Questions</button>
+        <button class="card btn-primary" onclick="practica.setModo('simple'); ui.mostrar('setup')">🟢 Práctica Simple Past</button>
+        <button class="card btn-purple" onclick="practica.setModo('continuous'); ui.mostrar('setup')">🔵 Práctica Past Continuous</button>
+        <button class="card btn-warning" onclick="practica.setModo('wh'); ui.mostrar('setup')">🟣 Práctica WH Questions</button>
+        <button id="btn-ver-verbos" class="card btn-ghost" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver Verbos</button>
       </div>
       <div class="bottom-cta">
-        <button id="btn-ver-verbos" class="btn-ghost" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver Verbos</button>
-        <button class="btn-ghost" onclick="ui.mostrar('agregar')">➕ Agregar Verbo</button>
         <button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
       </div>
     </section>
@@ -31,17 +30,20 @@
     <!-- Wizard práctica -->
     <section id="setup" class="panel hidden">
       <h2 id="setupTitle">🧠 Configurar práctica</h2>
+
       <div id="step1">
         <div class="setup-block">
           <label>Tu nombre</label>
           <input type="text" id="nombreUsuario" placeholder="Escribe tu nombre (o deja vacío para invitado)" />
           <div class="row">
-            <button class="btn" onclick="practica.setUsuario(); ui.irPaso(2)">Usar nombre</button>
-            <button class="btn" onclick="practica.usarInvitado(); ui.irPaso(2)">Entrar como Invitado</button>
+            <button class="btn" onclick="practica.setUsuario(); ui.irPaso(practica.modo==='wh'?3:2)">Usar nombre</button>
+            <button class="btn" onclick="practica.usarInvitado(); ui.irPaso(practica.modo==='wh'?3:2)">Entrar como Invitado</button>
           </div>
         </div>
         <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button></div>
       </div>
+
+      <!-- Paso 2 (solo simple/continuous) -->
       <div id="step2" class="hidden">
         <div class="setup-block">
           <label>Tipo de verbos</label>
@@ -50,13 +52,14 @@
             <button class="btn-chip" onclick="practica.setTipo('irregular'); ui.irPaso(3)">Irregulares</button>
             <button class="btn-chip" onclick="practica.setTipo('todos'); ui.irPaso(3)">Todos</button>
           </div>
-          <small id="notaModo"></small>
         </div>
         <div class="row">
           <button class="btn-ghost" onclick="ui.irPaso(1)">← Atrás</button>
           <button class="btn-ghost" onclick="ui.mostrar('menu')">Volver al menú</button>
         </div>
       </div>
+
+      <!-- Paso 3 -->
       <div id="step3" class="hidden">
         <div class="setup-block">
           <label>Cantidad</label>
@@ -71,7 +74,7 @@
         </div>
         <div class="row">
           <button class="btn-cta" onclick="practica.iniciar()">🚀 Iniciar práctica</button>
-          <button class="btn-ghost" onclick="ui.irPaso(2)">← Atrás</button>
+          <button class="btn-ghost" onclick="ui.irPaso(practica.modo==='wh'?1:2)">← Atrás</button>
           <button class="btn-ghost" onclick="ui.mostrar('menu')">Volver al menú</button>
         </div>
       </div>
@@ -81,8 +84,8 @@
     <section id="play" class="panel hidden">
       <div class="header-row">
         <div class="pill" id="pillUsuario">👤 Invitado</div>
-        <div class="pill" id="pillTipo">Tipo: todos</div>
-        <div class="pill" id="pillModoPrac">Modo: simple past</div>
+        <div class="pill" id="pillModo">Modo: simple</div>
+        <div class="pill" id="pillTipo">Tipo: —</div>
         <div class="pill" id="pillLimite">Límite: 10</div>
         <div class="pill" id="pillTimer">⏱ 00:00</div>
       </div>
@@ -108,16 +111,15 @@
         <div class="modal-content">
           <h3>📋 Resumen de la sesión</h3>
           <p><strong>Usuario:</strong> <span id="rUsuario"></span></p>
+          <p><strong>Modo:</strong> <span id="rModo"></span></p>
           <p><strong>Tipo:</strong> <span id="rTipo"></span></p>
-          <p><strong>Modo práctica:</strong> <span id="rModoPractica"></span></p>
-          <p><strong>Modo (dificultad):</strong> <span id="rModo"></span></p>
           <p>✅ Correctas: <span id="rOk"></span></p>
           <p>❌ Incorrectas: <span id="rBad"></span></p>
           <p>🔥 Racha máxima: <span id="rStreak"></span></p>
           <p>⏱ Tiempo: <span id="rTiempo"></span></p>
           <div class="row">
             <button class="btn" onclick="document.getElementById('filtroUsuario').value=practica.usuario; ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Ver estadísticas</button>
-            <button class="btn-cta" onclick="ui.mostrar('setup'); ui.irPaso(2);">🔁 Reintentar</button>
+            <button class="btn-cta" onclick="ui.mostrar('setup'); ui.irPaso(practica.modo==='wh'?3:2);">🔁 Reintentar</button>
             <button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button>
           </div>
         </div>
@@ -140,8 +142,8 @@
         <input type="text" id="nuevoPasado" placeholder="Simple past" />
         <input type="text" id="nuevaTraduccion" placeholder="Traducción (ES)" />
         <input type="text" id="nuevaTraduccionPasado" placeholder="Traducción del pasado (ES)" />
-        <input type="text" id="nuevoGerundio" placeholder="Gerundio (v-ing) ej: playing" />
-        <input type="text" id="nuevaTraduccionContinuo" placeholder="Traducción del pasado continuo (ES) ej: estaba jugando" />
+        <input type="text" id="nuevoContinuo" placeholder="Past continuous (EN) — ej: was/were going" />
+        <input type="text" id="nuevaTraduccionContinuo" placeholder="Traducción del pasado continuo (ES)" />
         <select id="nuevaCategoria">
           <option value="regular">Regular</option>
           <option value="irregular">Irregular</option>
@@ -154,7 +156,7 @@
       <div id="mensajeAgregar" class="feedback"></div>
     </section>
 
-    <!-- Estadísticas -->
+    <!-- Estadísticas con usuarios -->
     <section id="stats" class="panel hidden">
       <div class="row" style="justify-content:space-between">
         <h2>📈 Estadísticas</h2>
