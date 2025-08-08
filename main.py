@@ -1,103 +1,99 @@
-from flask import Flask, render_template, jsonify, request
-import random
+from flask import Flask, jsonify, request, render_template
 import json
 import os
+import random
 
 app = Flask(__name__)
-VERBOS_FILE = 'verbos.json'
 
+# Ruta del archivo JSON
+RUTA_JSON = "verbos.json"
+
+# Cargar verbos desde el archivo
 def cargar_verbos():
-    if os.path.exists(VERBOS_FILE):
-        with open(VERBOS_FILE, 'r', encoding='utf-8') as f:
+    if os.path.exists(RUTA_JSON):
+        with open(RUTA_JSON, "r", encoding="utf-8") as f:
             return json.load(f)
     return []
 
+# Guardar verbos en el archivo
 def guardar_verbos(verbos):
-    with open(VERBOS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(verbos, f, indent=2, ensure_ascii=False)
+    with open(RUTA_JSON, "w", encoding="utf-8") as f:
+        json.dump(verbos, f, ensure_ascii=False, indent=4)
 
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/pregunta')
-def pregunta():
-    verbos = cargar_verbos()
-    if not verbos:
-        return jsonify({"pregunta": "No hay verbos cargados.", "respuesta": ""})
-
-    tipo_verbos = request.args.get("tipo", "todos")
-    if tipo_verbos != "todos":
-        verbos = [v for v in verbos if v['categoria'] == tipo_verbos]
-
-    if not verbos:
-        return jsonify({"pregunta": "No hay verbos de ese tipo.", "respuesta": ""})
-
-    verbo = random.choice(verbos)
-    tipo = random.choice(['pasado', 'presente', 'traduccion'])
-
-    if tipo == 'pasado':
-        pregunta = f"¿Cuál es el pasado de '{verbo['presente']}'?"
-        respuesta = verbo['pasado']
-    elif tipo == 'presente':
-        pregunta = f"¿Cuál es el presente de '{verbo['pasado']}'?"
-        respuesta = verbo['presente']
-    else:
-        pregunta = f"¿Cómo se traduce '{verbo['presente']}' al español?"
-        respuesta = verbo['traduccion']
-
-    return jsonify({"pregunta": pregunta, "respuesta": respuesta})
-
-@app.route('/verbos')
-def lista_verbos():
+@app.route("/obtener_verbos", methods=["GET"])
+def obtener_verbos():
     return jsonify(cargar_verbos())
 
-@app.route('/agregar_verbo', methods=['POST'])
+@app.route("/agregar_verbo", methods=["POST"])
 def agregar_verbo():
-    data = request.get_json()
-    presente = data.get('presente', '').strip().lower()
-    pasado = data.get('pasado', '').strip().lower()
-    traduccion = data.get('traduccion', '').strip().lower()
-    categoria = data.get('categoria', 'irregular')
-
-    if not presente or not pasado or not traduccion:
-        return jsonify({"estado": "error", "mensaje": "Faltan campos."})
-
+    data = request.json
     verbos = cargar_verbos()
-    for verbo in verbos:
-        if verbo['presente'] == presente:
-            return jsonify({"estado": "error", "mensaje": "El verbo ya existe."})
-
-    verbos.append({
-        "presente": presente,
-        "pasado": pasado,
-        "traduccion": traduccion,
-        "categoria": categoria
-    })
+    verbos.append(data)
     guardar_verbos(verbos)
-    return jsonify({"estado": "ok", "mensaje": "Verbo agregado correctamente."})
+    return jsonify({"mensaje": "Verbo agregado con éxito"})
 
-@app.route('/editar_verbo', methods=['POST'])
+@app.route("/editar_verbo", methods=["POST"])
 def editar_verbo():
-    data = request.get_json()
-    idx = data['index']
+    data = request.json
     verbos = cargar_verbos()
-    if 0 <= idx < len(verbos):
-        verbos[idx] = data['verbo']
-        guardar_verbos(verbos)
-        return jsonify({"estado": "ok"})
-    return jsonify({"estado": "error"})
+    for i, verbo in enumerate(verbos):
+        if i == data["index"]:
+            verbos[i] = data["nuevo"]
+            break
+    guardar_verbos(verbos)
+    return jsonify({"mensaje": "Verbo editado con éxito"})
 
-@app.route('/eliminar_verbo', methods=['POST'])
+@app.route("/eliminar_verbo", methods=["POST"])
 def eliminar_verbo():
-    data = request.get_json()
-    idx = data['index']
+    data = request.json
     verbos = cargar_verbos()
-    if 0 <= idx < len(verbos):
-        del verbos[idx]
+    if 0 <= data["index"] < len(verbos):
+        verbos.pop(data["index"])
         guardar_verbos(verbos)
-        return jsonify({"estado": "ok"})
-    return jsonify({"estado": "error"})
+    return jsonify({"mensaje": "Verbo eliminado con éxito"})
 
-if __name__ == '__main__':
+@app.route("/pregunta", methods=["POST"])
+def pregunta():
+    data = request.json
+    tipo = data.get("tipo", "todos")
+    cantidad = data.get("cantidad", None)
+
+    verbos = cargar_verbos()
+
+    # Filtrar según tipo
+    if tipo != "todos":
+        verbos = [v for v in verbos if v["tipo"] == tipo]
+
+    # Selección de verbos
+    if cantidad and cantidad != "ilimitado":
+        verbos = random.sample(verbos, min(cantidad, len(verbos)))
+    else:
+        random.shuffle(verbos)
+
+    preguntas = []
+    for v in verbos:
+        modo = random.choice(["presente", "pasado", "traduccion"])
+        if modo == "presente":
+            preguntas.append({
+                "pregunta": f"¿Cuál es el pasado de '{v['presente']}'?",
+                "respuesta": v["pasado"]
+            })
+        elif modo == "pasado":
+            preguntas.append({
+                "pregunta": f"¿Cuál es el presente de '{v['pasado']}'?",
+                "respuesta": v["presente"]
+            })
+        else:
+            preguntas.append({
+                "pregunta": f"¿Cómo se traduce '{v['presente']}' al español?",
+                "respuesta": v["traduccion"]
+            })
+
+    return jsonify(preguntas)
+
+if __name__ == "__main__":
     app.run(debug=True)
