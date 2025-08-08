@@ -1,8 +1,13 @@
-/* ===== Base ===== */
+/* ===== Paleta ===== */
 :root{
-  --navy:#0b1e3a;
-  --card:#ffffff;
-  --text:#f4f7ff;
+  --bg-light:#eef3ff;
+  --bg-panel:#ffffff;
+  --text:#0f172a;
+
+  --navy:#0b1e3a;         /* fondo oscuro */
+  --panel-dark:#111827;   /* panel oscuro */
+  --text-dark:#f4f7ff;
+
   --accent:#4CAF50;
   --warn:#ff9800;
   --purple:#8e44ad;
@@ -10,36 +15,37 @@
   --danger:#d32f2f;
 }
 
-body.navy{
-  background: var(--navy);
-  color: var(--text);
+/* ===== Base (claro) ===== */
+*{box-sizing:border-box}
+body{
   margin:0;
+  background: linear-gradient(180deg,#f7faff 0%, var(--bg-light) 100%);
+  color: var(--text);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
-/* Dark toggle */
+/* Top bar */
 .topbar{
   display:flex;align-items:center;justify-content:space-between;
   padding:12px 16px;
-  background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(6px);
-  border-bottom:1px solid rgba(255,255,255,0.08);
+  background:#0f172a0d; /* tenue */
+  border-bottom:1px solid #e5e7eb;
 }
-.topbar h1{margin:0;font-size:1.2rem}
+.topbar h1{margin:0;font-size:1.1rem}
 .mode-toggle{
-  background: transparent;border:1px solid rgba(255,255,255,0.35);
-  color:#fff;border-radius:10px;padding:6px 10px;cursor:pointer
+  background: transparent;border:1px solid #cbd5e1;
+  color:#0f172a;border-radius:10px;padding:6px 10px;cursor:pointer
 }
 
 main{max-width:980px;margin:24px auto;padding:0 12px}
 
 /* Panels */
 .panel{
-  background: var(--card);
-  color:#222;
+  background: var(--bg-panel);
+  color: var(--text);
   border-radius:16px;
   padding:18px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.25);
+  box-shadow:0 10px 30px rgba(0,0,0,0.12);
   margin-bottom:20px;
 }
 .center{text-align:center}
@@ -50,21 +56,21 @@ main{max-width:980px;margin:24px auto;padding:0 12px}
 .card{
   min-width:220px; padding:24px 18px;border-radius:14px;border:none;
   color:#fff;font-weight:700;font-size:1.05rem;cursor:pointer;
-  box-shadow:0 6px 16px rgba(0,0,0,0.25);
+  box-shadow:0 6px 16px rgba(0,0,0,0.20);
   transition:transform .15s ease, box-shadow .15s ease;
 }
-.card:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(0,0,0,0.35)}
+.card:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(0,0,0,0.25)}
 .btn-primary{background:var(--accent)}
 .btn-warning{background:var(--warn)}
 .btn-purple{background:var(--purple)}
-.btn-ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:10px;padding:8px 12px}
+.btn-ghost{background:transparent;color:#0f172a;border:1px solid #cbd5e1;border-radius:10px;padding:8px 12px}
 
 /* Setup blocks */
 .setup-block{margin:12px 0}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 input[type="text"], select{
-  padding:10px;border-radius:10px;border:1px solid #ddd;outline:none
+  padding:10px;border-radius:10px;border:1px solid #cbd5e1;outline:none
 }
 .btn{background:#2d7ef7;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
 .btn-chip{background:var(--chip);color:#fff;border:none;border-radius:999px;padding:8px 12px;cursor:pointer}
@@ -74,7 +80,7 @@ input[type="text"], select{
 .btn-cancel{background:var(--danger);color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
 .feedback{margin-top:8px;font-weight:600}
 
-/* Pills / info chips */
+/* Pills */
 .pill{
   display:inline-block;background:#eef2ff;color:#223;
   border-radius:999px;padding:6px 10px;margin:4px 4px 10px 0;font-weight:700
@@ -84,7 +90,6 @@ input[type="text"], select{
 .flashcard{
   background:#e3f2fd;color:#111;border-radius:12px;padding:14px;margin:10px 0;font-size:1.1rem;font-weight:800
 }
-.dark .flashcard{background:#263238;color:#fff}
 
 /* Lista de verbos */
 #listaVerbos{list-style:none;padding:0;margin:10px 0}
@@ -92,9 +97,7 @@ input[type="text"], select{
   background:#f7f8fc;border:1px solid #e8ebf5;border-radius:12px;
   padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap
 }
-.badge{
-  padding:4px 8px;border-radius:999px;color:#fff;font-weight:800;font-size:.8rem
-}
+.badge{padding:4px 8px;border-radius:999px;color:#fff;font-weight:800;font-size:.8rem}
 .badge.regular{background:#2e7d32}
 .badge.irregular{background:#ef6c00}
 .verb{font-weight:700}
@@ -109,9 +112,23 @@ input[type="text"], select{
 /* Bottom CTA in menu */
 .bottom-cta{margin-top:10px}
 
-/* Dark mode */
-.dark .panel{background:#111827;color:#f5f7ff;border:1px solid #2b3347}
+/* ===== Modal resumen ===== */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10}
+.modal-content{
+  background:#fff;color:#111;max-width:420px;width:92%;border-radius:12px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.35)
+}
+
+/* ===== Modo oscuro ===== */
+.dark{
+  background: var(--navy);
+  color: var(--text-dark);
+}
+.dark .topbar{background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08)}
+.dark .mode-toggle{color:#fff;border-color:rgba(255,255,255,0.35)}
+.dark .panel{background:var(--panel-dark);color:var(--text-dark);border:1px solid #2b3347}
 .dark input[type="text"], .dark select{background:#0f172a;color:#e5e7eb;border:1px solid #334155}
-.dark .btn-ghost{border-color:#5b6a91}
+.dark .btn-ghost{border-color:#5b6a91;color:#fff}
 .dark #listaVerbos li{background:#0b1224;border-color:#1f2941}
 .dark .tabla th{background:#0b1224}
+.dark .flashcard{background:#263238;color:#fff}
+.dark .modal-content{background:#111827;color:#f5f7ff;border:1px solid #2b3347}
