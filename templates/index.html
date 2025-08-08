@@ -13,6 +13,14 @@
     <button id="btn-dark" class="mode-toggle" title="Modo oscuro/claro">🌙</button>
   </header>
 
+  <!-- Barra global -->
+  <nav class="global-nav">
+    <button onclick="ui.mostrar('menu')">🏠 Menú</button>
+    <button onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Verbos</button>
+    <button onclick="ui.mostrar('agregar')">➕ Agregar</button>
+    <button onclick="ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
+  </nav>
+
   <main>
     <!-- Menú -->
     <section id="menu" class="panel center">
@@ -23,16 +31,12 @@
         <button class="card btn-purple" onclick="ui.mostrar('agregar')">➕ Agregar Verbo</button>
         <button id="btn-ver-verbos" class="card btn-ghost" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver Verbos</button>
       </div>
-      <div class="bottom-cta">
-        <button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
-      </div>
     </section>
 
     <!-- Wizard práctica -->
     <section id="setup" class="panel hidden">
       <h2 id="setupTitle">🧠 Configurar práctica</h2>
 
-      <!-- Paso 1: usuario -->
       <div id="step1">
         <div class="setup-block">
           <label>Tu nombre</label>
@@ -45,12 +49,7 @@
         <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button></div>
       </div>
 
-      <!-- Paso 2:
-           - simple/continuous: elegir tipo de verbos
-           - wh: elegir submodo (traducción u oraciones)
-      -->
       <div id="step2" class="hidden">
-        <!-- Para simple/continuous -->
         <div id="blockTipos" class="setup-block">
           <label>Tipo de verbos</label>
           <div class="row">
@@ -60,7 +59,6 @@
           </div>
         </div>
 
-        <!-- Para WH -->
         <div id="blockWH" class="setup-block hidden">
           <label>Modo WH</label>
           <div class="row">
@@ -75,7 +73,6 @@
         </div>
       </div>
 
-      <!-- Paso 3: cantidad -->
       <div id="step3" class="hidden">
         <div class="setup-block">
           <label>Cantidad</label>
@@ -129,6 +126,7 @@
       <!-- Resumen -->
       <div id="resumen" class="modal hidden">
         <div class="modal-content">
+          <button class="close-x" aria-label="Cerrar" onclick="this.closest('.modal').classList.add('hidden'); this.closest('.modal').style.display='none'">✖</button>
           <h3>📋 Resumen de la sesión</h3>
           <p><strong>Usuario:</strong> <span id="rUsuario"></span></p>
           <p><strong>Modo:</strong> <span id="rModo"></span></p>
@@ -219,6 +217,7 @@
   <!-- Modal editar verbo -->
   <div id="modalEdit" class="modal hidden">
     <div class="modal-content">
+      <button class="close-x" aria-label="Cerrar" onclick="datos.cerrarModal()">✖</button>
       <h3>✏️ Editar verbo</h3>
       <div class="grid">
         <input type="text" id="editPresente" placeholder="Base form" />
