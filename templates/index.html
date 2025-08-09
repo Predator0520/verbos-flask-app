@@ -34,18 +34,19 @@
       <!-- Portada -->
       <h2 style="margin-top:0">📷 Portada</h2>
       <div class="panel-sub" style="margin-bottom:14px">
-        <div style="padding:12px; border:1px dashed var(--border); border-radius:12px; background:#fff">
-          <img src="/portada" alt="Sin imagen" id="portada-img">
+        <div class="portada-box" id="portadaBox">
+          <img src="/portada" alt="Sin imagen" id="portada-img" title="Haz clic para subir una imagen">
         </div>
         <div class="row" style="margin-top:10px; gap:10px">
-          <input type="file" id="filePortada" accept="image/*" style="display:none"
-                 onchange="if(this.files&&this.files[0]){ uploadPortada(this.files[0]); this.value=''; }">
-          <button class="btn" onclick="document.getElementById('filePortada').click()">Subir imagen</button>
-          <button class="btn-cancel" onclick="deletePortada()">Quitar imagen</button>
+          <!-- input real oculto -->
+          <input type="file" id="filePortada" accept="image/*" style="display:none">
+          <!-- botones -->
+          <button class="btn" id="btnSubirPortada" type="button">Subir imagen</button>
+          <button class="btn-cancel" id="btnQuitarPortada" type="button">Quitar imagen</button>
         </div>
+        <small id="portadaMsg" class="hint"></small>
       </div>
 
-      <!-- Resumen -->
       <h2>📊 Resumen</h2>
 
       <div class="kpis">
@@ -187,7 +188,7 @@
           <p>🔥 Racha máxima: <span id="rStreak"></span></p>
           <p>⏱ Tiempo: <span id="rTiempo"></span></p>
           <div class="row">
-            <button class="btn" onclick="document.getElementById('filtroUsuario').value=practica.usuario; ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Ver estadísticas</button>
+            <button class="btn" onclick="document.getElementById('filtroUsuario').value=practica.usuario; ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
             <button class="btn" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver verbos</button>
             <button class="btn" onclick="datos.abrirModalAgregar()">➕ Agregar verbo</button>
             <button class="btn-cta" onclick="ui.mostrar('menu')">🏠 Menú principal</button>
