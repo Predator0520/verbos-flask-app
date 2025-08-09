@@ -47,10 +47,8 @@ body{
   background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:6px 10px; cursor:pointer;
 }
 
-/* Dropdown Menú */
-.dropdown{
-  position: relative; display: inline-block;
-}
+/* Dropdown */
+.dropdown{ position: relative; display: inline-block; }
 .dropdown-menu{
   position:absolute; top:100%; left:0; min-width:220px;
   background:#fff; border:1px solid var(--border); border-radius:12px;
@@ -77,7 +75,25 @@ main{max-width:1100px;margin:24px auto;padding:0 12px}
 .center{text-align:center}
 .hidden{display:none}
 
-/* Cards menu */
+/* Dashboard Home */
+.kpis{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px,1fr));
+  gap:12px; margin:10px 0 18px;
+}
+.kpi{border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff}
+.kpi-label{font-size:.9rem; opacity:.8}
+.kpi-value{font-size:1.6rem; font-weight:800; margin-top:4px}
+
+.panel-sub{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px; background:#fff;
+}
+.simple-list{margin:8px 0 0; padding-left:18px}
+.simple-list li{margin:4px 0}
+
+/* Cards (legacy) */
 .cards{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:8px}
 .card{
   min-width:220px; padding:24px 18px;border-radius:14px;border:none;
@@ -91,7 +107,7 @@ main{max-width:1100px;margin:24px auto;padding:0 12px}
 .btn-purple{background:var(--purple)}
 .btn-ghost{background:transparent;color:#0f172a;border:1px solid #cbd5e1;border-radius:10px;padding:8px 12px}
 
-/* Setup blocks */
+/* Setup */
 .setup-block{margin:12px 0}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
@@ -187,3 +203,4 @@ input[type="text"], select{
 .dark .dropdown-menu{ background:#0f172a; color:#e5e7eb; border-color:#334155 }
 .dark .dropdown-menu .menu-item{ background:#0f172a; color:#e5e7eb; border-color:#334155 }
 .dark .dropdown-menu .menu-item:hover{ background:#0b1224 }
+.dark .kpi, .dark .panel-sub{ background:#0f172a; border-color:#334155 }
