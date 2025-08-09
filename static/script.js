@@ -2,6 +2,43 @@
 const show = (id)=>{const m=document.getElementById(id); if(!m) return; m.classList.remove("hidden"); m.style.display="flex";}
 const hide = (id)=>{const m=document.getElementById(id); if(!m) return; m.classList.add("hidden"); m.style.display="none";}
 
+// Normalizadores
+function normalizeStr(s){
+  return (s||"").toString().trim().toLowerCase()
+    .replace(/\s+/g,' ')
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+}
+function uniqByNorm(arr){
+  const seen=new Set(); const out=[];
+  for(const x of arr){
+    const k=normalizeStr(x);
+    if(!k || seen.has(k)) continue;
+    seen.add(k); out.push(x);
+  }
+  return out;
+}
+function _shuffle(a){ return a.sort(()=>Math.random()-0.5); }
+
+// Expande variantes con “/”
+function expandSlashVariants(s){
+  const raw=(s||"").trim();
+  if(!raw) return [];
+  const lc=raw.toLowerCase();
+  const re=/\b([a-z]+)\s*\/\s*([a-z]+)\b/gi;
+  let match, variants=[raw];
+  while((match=re.exec(lc))){
+    const a=match[1]; const b=match[2];
+    const before=raw.slice(0, match.index).trim();
+    const after=raw.slice(match.index + match[0].length).trim();
+    const rest = after ? " " + after : "";
+    variants.push((before?before+" ":"") + a + rest);
+    variants.push((before?before+" ":"") + b + rest);
+    variants.push(a);
+    variants.push(b);
+  }
+  return uniqByNorm(variants);
+}
+
 // ===== UI =====
 const ui = {
   mostrar: (id) => {
@@ -299,7 +336,38 @@ const datos = {
 
 // ===== PRÁCTICA =====
 
-// Banco WH (para armar opciones en traducción)
+// Cache de todos los verbos para armar distractores
+let ALL_VERBS = null;
+async function ensureVerbsCache(){
+  if (ALL_VERBS) return ALL_VERBS;
+  const res = await fetch("/obtener_verbos");
+  ALL_VERBS = await res.json();
+  return ALL_VERBS;
+}
+
+// Pools por tipo de pregunta
+function poolForType(type){
+  const verbs = ALL_VERBS || [];
+  switch(type){
+    case "past":        return verbs.map(v=>v.pasado).filter(Boolean);
+    case "base":        return verbs.map(v=>v.presente).filter(Boolean);
+    case "cont":        return verbs.map(v=>v.continuo).filter(Boolean);
+    case "es":          return verbs.map(v=>v.traduccion).filter(Boolean);
+    case "es_past":     return verbs.map(v=>v.traduccion_pasado || v.traduccion).filter(Boolean);
+    default:            return [];
+  }
+}
+
+function pickOptions(correct, pool, need=4){
+  const normCorrect = normalizeStr(correct);
+  const uniquePool = uniqByNorm(pool).filter(x=>normalizeStr(x)!==normCorrect);
+  _shuffle(uniquePool);
+  const picked = uniquePool.slice(0, Math.max(0, need-1));
+  const options = uniqByNorm([correct, ...picked]);
+  return _shuffle(options.length>=2 ? options.slice(0, need) : options);
+}
+
+// Banco WH
 const WH_BANK = [
   {en:"who", es:"quién"},
   {en:"what", es:"qué"},
@@ -313,13 +381,10 @@ const WH_BANK = [
   {en:"how much", es:"cuánto"}
 ];
 
-function _shuffle(a){ return a.sort(()=>Math.random()-0.5); }
-
 function whToMCQ(q){
-  // q.pregunta: "Traduce al español: 'who'"  o  "Traduce al inglés: 'quién'"
   const m = q.pregunta.match(/Traduce al (español|inglés): '(.+?)'/i);
   if(!m) return q;
-  const target = m[1].toLowerCase();    // español | inglés
+  const target = m[1].toLowerCase();
   const word   = m[2].toLowerCase();
 
   let correct = "", pool = [];
@@ -332,9 +397,7 @@ function whToMCQ(q){
     correct = item.en;
     pool = WH_BANK.filter(x=>x.es!==word).map(x=>x.en);
   }
-  const distractores = _shuffle(pool).slice(0,3);
-  const opciones = _shuffle([correct, ...distractores]);
-  return { pregunta: q.pregunta, opciones, correcta: opciones.indexOf(correct) };
+  return { pregunta: q.pregunta, opciones: pickOptions(correct, pool, 4), correcta: -1 };
 }
 
 const practica = {
@@ -370,54 +433,52 @@ const practica = {
 
   async iniciar(){
     hide("resumen");
+    await ensureVerbsCache();
     let arr = [];
     try{
       if (this.modo === "wh"){
         if (this.whTipo === "oraciones"){
-          // AHORA sí pedimos oraciones reales (MCQ)
           const res = await fetch("/preguntas_wh_oraciones",{method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({cantidad: this.ilimitado?"ilimitado":this.cantidad})});
           arr = await res.json();
         } else {
-          // Traducción -> convertimos a MCQ con 3-4 opciones
           const res = await fetch("/preguntas_wh",{method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({cantidad: this.ilimitado?"ilimitado":this.cantidad})});
           const base = await res.json();
           arr = base.map(whToMCQ);
         }
       }else{
-        // Verbos (simple/continuous): mantenemos preguntas, PERO
-        // si la pregunta es "¿Cuál es el pasado/presente ...?" => damos 2 opciones (las dos formas)
         const res = await fetch("/preguntas",{method:"POST",headers:{"Content-Type":"application/json"},
           body: JSON.stringify({modo:this.modo,tipo:this.tipo,cantidad:this.ilimitado?"ilimitado":this.cantidad})});
         const base = await res.json();
 
+        // Convertimos TODAS a opción múltiple (4 opciones)
         arr = base.map(q=>{
-          const m = q.pregunta.match(/'(.+?)'/);
-          const quoted = m ? m[1] : null;
-
           const P = q.pregunta.toLowerCase();
-          // simple
-          if (P.includes("¿cuál es el pasado de ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = pasado, quoted = presente
-            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
-          }
-          if (P.includes("¿cuál es el presente de ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = presente, quoted = pasado
-            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
-          }
-          // continuous
-          if (P.includes("¿cuál es el pasado continuo de ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = cont, quoted = base
-            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
-          }
-          if (P.includes("¿cuál es el presente del continuo ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = base, quoted = cont
-            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
-          }
-          // otras (traducciones) permanecen como respuesta libre
-          return q;
+          let type=null; // "past" | "base" | "cont" | "es" | "es_past"
+          if (P.includes("¿cuál es el pasado de '")) type="past";
+          else if (P.includes("¿cuál es el presente de '")) type="base";
+          else if (P.includes("¿cuál es el pasado continuo de '")) type="cont";
+          else if (P.includes("¿cuál es el presente del continuo '")) type="base";
+          else if (P.includes("¿cómo se traduce '") && P.includes("al español")) type="es";
+          else if (P.includes("¿cómo se traduce el pasado '") && P.includes("al español")) type="es_past";
+
+          if (!type) return q;
+
+          const pool = poolForType(type);
+          const opciones = pickOptions(q.respuesta, pool, 4);
+          const correcta = opciones.findIndex(o=>normalizeStr(o)===normalizeStr(q.respuesta));
+          return { pregunta: q.pregunta, opciones, correcta: (correcta>=0?correcta:0), respuesta: q.respuesta };
         });
       }
     }catch(e){ alert("No se pudieron cargar las preguntas."); return; }
+
+    // Ajustar "correcta" si venía -1
+    arr = arr.map(q=>{
+      if (Array.isArray(q.opciones) && (q.correcta==null || q.correcta<0) && q.respuesta){
+        const i = q.opciones.findIndex(o=>normalizeStr(o)===normalizeStr(q.respuesta));
+        if (i>=0) q.correcta=i;
+      }
+      return q;
+    });
 
     if (!Array.isArray(arr) || arr.length===0){
       alert("No hay preguntas para ese modo/filtro. Agrega verbos o cambia el filtro.");
@@ -448,7 +509,7 @@ const practica = {
     const q = this.preguntas[this.idx % this.preguntas.length];
     document.getElementById("pregunta").textContent=q.pregunta;
 
-    if (Array.isArray(q.opciones)){ // opción múltiple
+    if (Array.isArray(q.opciones)){ // MCQ
       boxLibre.classList.add("hidden"); boxOpc.classList.remove("hidden");
       boxOpc.innerHTML="";
       q.opciones.forEach((op,i)=>{
@@ -469,13 +530,31 @@ const practica = {
       `${Math.min(this.idx, this.preguntas.length)}/${this.ilimitado ? "∞" : this.preguntas.length}`;
   },
 
+  // Comparación libre con variantes de slash
+  _isCorrectFree(respRaw, expectedRaw){
+    const norm = s => normalizeStr(s);
+    const resp = norm(respRaw);
+    const expected = norm(expectedRaw);
+    if (!resp) return false;
+    if (resp === expected) return true;
+
+    const variants = expandSlashVariants(expectedRaw);
+    for(const v of variants){
+      if (norm(v) === resp) return true;
+    }
+    return false;
+  },
+
   verificar(){
-    const norm = s => (s??"").toString().trim().toLowerCase()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     const q=this.preguntas[this.idx % this.preguntas.length];
-    const resp=norm(document.getElementById("respuesta").value||"");
-    const exp=q.respuesta; let ok=false;
-    if (Array.isArray(exp)) ok=exp.some(a=>norm(a)===resp); else ok=(norm(exp)===resp);
+    const resp=(document.getElementById("respuesta").value||"").trim();
+
+    let ok=false;
+    if (Array.isArray(q.respuesta)){
+      ok = q.respuesta.some(a=>this._isCorrectFree(resp,a));
+    }else{
+      ok = this._isCorrectFree(resp, q.respuesta);
+    }
     this._post(ok, q);
   },
   verificarOpcion(iSel){
