@@ -1,4 +1,4 @@
-// Helpers de modal (abren/cierran siempre)
+// Helpers de modal
 const show = (id)=>{const m=document.getElementById(id); if(!m) return; m.classList.remove("hidden"); m.style.display="flex";}
 const hide = (id)=>{const m=document.getElementById(id); if(!m) return; m.classList.add("hidden"); m.style.display="none";}
 
@@ -6,11 +6,15 @@ const hide = (id)=>{const m=document.getElementById(id); if(!m) return; m.classL
 const ui = {
   mostrar: (id) => {
     hide("modalVerb"); hide("resumen");
+
     ["menu","setup","play","lista","stats"].forEach(sec => {
       document.getElementById(sec).classList.add("hidden");
     });
     document.getElementById(id).classList.remove("hidden");
+
     document.getElementById("btn-ver-verbos").disabled = (id === "play" || id === "setup");
+
+    if (id === "menu") ui.cargarHome();
 
     if(id==="setup"){
       ui.irPaso(1);
@@ -30,6 +34,36 @@ const ui = {
     document.getElementById(`step${n}`).classList.remove("hidden");
   },
   cerrarResumen: ()=> hide("resumen"),
+
+  // Dashboard
+  cargarHome: async () => {
+    try{
+      const [verbsRes, statsRes] = await Promise.all([
+        fetch("/obtener_verbos"),
+        fetch("/estadisticas")
+      ]);
+      const [verbs, stats] = [await verbsRes.json(), await statsRes.json()];
+
+      document.getElementById("kpiVerbos").textContent   = verbs.length;
+      document.getElementById("kpiSesiones").textContent = stats.length;
+      document.getElementById("kpiUltimo").textContent   = stats.length ? (stats[0].porcentaje+"%") : "—";
+
+      const ult = stats.slice(0,5)
+        .map(s => `<li>${new Date(s.fecha).toLocaleString()} — <b>${s.usuario||'invitado'}</b> — ${s.tipo} — ${s.porcentaje}%</li>`)
+        .join("") || "<li>(Sin resultados)</li>";
+      document.getElementById("homeUltimos").innerHTML = ult;
+
+      const ultVerbos = verbs.slice(-5).reverse()
+        .map(v => `<li><span class="badge ${v.categoria}">${v.categoria}</span> ${v.presente} — ${v.pasado}</li>`)
+        .join("") || "<li>(Sin verbos)</li>";
+      document.getElementById("homeVerbos").innerHTML = ultVerbos;
+
+    }catch(e){
+      console.error(e);
+      document.getElementById("homeUltimos").innerHTML = "<li>Error cargando datos</li>";
+      document.getElementById("homeVerbos").innerHTML  = "<li>Error cargando datos</li>";
+    }
+  },
 
   // Sidebar usuarios + stats
   cargarUsuarios: async () => {
@@ -113,7 +147,7 @@ const ui = {
     }
   },
 
-  // ===== Dropdown del Menú en la barra =====
+  // Dropdown Práctica
   toggleMenuDropdown: (open=null) => {
     const dd = document.getElementById("menuDropdown");
     const isOpen = !dd.classList.contains("hidden");
@@ -133,7 +167,7 @@ document.addEventListener("click", (e)=>{
   }
 });
 
-// ===== VERBOS (CRUD + modal) =====
+// ===== VERBOS (CRUD) =====
 const datos = {
   verbos: [],
   _mode: "add",
@@ -215,7 +249,6 @@ const datos = {
       categoria: document.getElementById("editCategoria").value
     };
 
-    // Validación mínima en el cliente
     if (!payload.presente || !payload.pasado || !payload.traduccion){
       alert("Completa: Base (presente), Pasado y Traducción base.");
       return;
@@ -248,7 +281,6 @@ const datos = {
     if (!ok){ alert(msg); return; }
 
     hide("modalVerb");
-    // Siempre mostramos la lista y refrescamos para ver el nuevo verbo enseguida
     ui.mostrar('lista');
     datos.listarVerbos();
   },
@@ -266,6 +298,45 @@ const datos = {
 };
 
 // ===== PRÁCTICA =====
+
+// Banco WH (para armar opciones en traducción)
+const WH_BANK = [
+  {en:"who", es:"quién"},
+  {en:"what", es:"qué"},
+  {en:"when", es:"cuándo"},
+  {en:"where", es:"dónde"},
+  {en:"why", es:"por qué"},
+  {en:"how", es:"cómo"},
+  {en:"which", es:"cuál"},
+  {en:"whose", es:"de quién"},
+  {en:"how many", es:"cuántos"},
+  {en:"how much", es:"cuánto"}
+];
+
+function _shuffle(a){ return a.sort(()=>Math.random()-0.5); }
+
+function whToMCQ(q){
+  // q.pregunta: "Traduce al español: 'who'"  o  "Traduce al inglés: 'quién'"
+  const m = q.pregunta.match(/Traduce al (español|inglés): '(.+?)'/i);
+  if(!m) return q;
+  const target = m[1].toLowerCase();    // español | inglés
+  const word   = m[2].toLowerCase();
+
+  let correct = "", pool = [];
+  if (target === "español"){
+    const item = WH_BANK.find(x=>x.en===word); if(!item) return q;
+    correct = item.es;
+    pool = WH_BANK.filter(x=>x.en!==word).map(x=>x.es);
+  } else {
+    const item = WH_BANK.find(x=>x.es===word); if(!item) return q;
+    correct = item.en;
+    pool = WH_BANK.filter(x=>x.es!==word).map(x=>x.en);
+  }
+  const distractores = _shuffle(pool).slice(0,3);
+  const opciones = _shuffle([correct, ...distractores]);
+  return { pregunta: q.pregunta, opciones, correcta: opciones.indexOf(correct) };
+}
+
 const practica = {
   modo:"simple",     // simple | continuous | wh
   whTipo:"traduccion", // traduccion | oraciones
@@ -302,27 +373,49 @@ const practica = {
     let arr = [];
     try{
       if (this.modo === "wh"){
-        const res = await fetch("/preguntas_wh",{method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({cantidad: this.ilimitado?"ilimitado":this.cantidad})});
-        arr = await res.json();
         if (this.whTipo === "oraciones"){
-          const allAnswers = arr.map(x=>x.respuesta);
-          arr = arr.map(q=>{
-            const correct = q.respuesta;
-            const pool = allAnswers.filter(a=>a!==correct);
-            const mix = [];
-            while(mix.length<3 && pool.length){
-              const idx = Math.floor(Math.random()*pool.length);
-              const pick = pool.splice(idx,1)[0];
-              if (!mix.includes(pick)) mix.push(pick);
-            }
-            const opciones = [correct, ...mix].sort(()=>Math.random()-0.5);
-            return { pregunta: q.pregunta, opciones, correcta: opciones.indexOf(correct) };
-          });
+          // AHORA sí pedimos oraciones reales (MCQ)
+          const res = await fetch("/preguntas_wh_oraciones",{method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({cantidad: this.ilimitado?"ilimitado":this.cantidad})});
+          arr = await res.json();
+        } else {
+          // Traducción -> convertimos a MCQ con 3-4 opciones
+          const res = await fetch("/preguntas_wh",{method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({cantidad: this.ilimitado?"ilimitado":this.cantidad})});
+          const base = await res.json();
+          arr = base.map(whToMCQ);
         }
       }else{
+        // Verbos (simple/continuous): mantenemos preguntas, PERO
+        // si la pregunta es "¿Cuál es el pasado/presente ...?" => damos 2 opciones (las dos formas)
         const res = await fetch("/preguntas",{method:"POST",headers:{"Content-Type":"application/json"},
           body: JSON.stringify({modo:this.modo,tipo:this.tipo,cantidad:this.ilimitado?"ilimitado":this.cantidad})});
-        arr = await res.json();
+        const base = await res.json();
+
+        arr = base.map(q=>{
+          const m = q.pregunta.match(/'(.+?)'/);
+          const quoted = m ? m[1] : null;
+
+          const P = q.pregunta.toLowerCase();
+          // simple
+          if (P.includes("¿cuál es el pasado de ") && quoted){
+            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = pasado, quoted = presente
+            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
+          }
+          if (P.includes("¿cuál es el presente de ") && quoted){
+            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = presente, quoted = pasado
+            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
+          }
+          // continuous
+          if (P.includes("¿cuál es el pasado continuo de ") && quoted){
+            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = cont, quoted = base
+            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
+          }
+          if (P.includes("¿cuál es el presente del continuo ") && quoted){
+            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = base, quoted = cont
+            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
+          }
+          // otras (traducciones) permanecen como respuesta libre
+          return q;
+        });
       }
     }catch(e){ alert("No se pudieron cargar las preguntas."); return; }
 
@@ -407,11 +500,10 @@ const practica = {
     const total=this.correctas+this.incorrectas;
     const porcentaje= total? ((this.correctas/total)*100).toFixed(2) : "0.00";
     const modoText=(this.modo==='wh'?`wh/${this.whTipo}`:this.modo);
-    const limiteText=this.ilimitado?"ilimitado":this.cantidad;
 
     fetch("/guardar_resultado",{method:"POST",headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
-        usuario:this.usuario,tipo:modoText,limitado:!this.ilimitado,cantidad:limiteText,
+        usuario:this.usuario,tipo:modoText,limitado:!this.ilimitado,cantidad:this.ilimitado?"ilimitado":this.cantidad,
         correctas:this.correctas,incorrectas:this.incorrectas,streak_max:this.streakMax,duracion_segundos:secs
       })
     });
@@ -441,7 +533,7 @@ const practica = {
   _stopTimer(){ clearInterval(this.timerInt); this.timerInt=null; }
 };
 
-// Atajos teclado
+// Atajos
 document.addEventListener("keydown",(e)=>{
   if (e.key==="Escape"){ hide("modalVerb"); hide("resumen"); }
   const inPlay=!document.getElementById("play").classList.contains("hidden");
@@ -456,7 +548,7 @@ document.addEventListener("keydown",(e)=>{
   }
 });
 
-// Dark mode con icono ☀️/🌙
+// Dark mode ☀️/🌙
 (function(){
   const btn=document.getElementById("btn-dark");
   const apply=(dark)=>{
@@ -474,19 +566,7 @@ document.addEventListener("keydown",(e)=>{
 // Inicio
 ui.mostrar("menu");
 
-// Acciones desde el dropdown del Menú
-window._goSimple = ()=>{
-  practica.setModo('simple');
-  ui.toggleMenuDropdown(false);
-  ui.mostrar('setup');
-};
-window._goContinuous = ()=>{
-  practica.setModo('continuous');
-  ui.toggleMenuDropdown(false);
-  ui.mostrar('setup');
-};
-window._goWH = ()=>{
-  practica.setModo('wh');
-  ui.toggleMenuDropdown(false);
-  ui.mostrar('setup');
-};
+// Acciones dropdown
+window._goSimple = ()=>{ practica.setModo('simple'); ui.toggleMenuDropdown(false); ui.mostrar('setup'); };
+window._goContinuous = ()=>{ practica.setModo('continuous'); ui.toggleMenuDropdown(false); ui.mostrar('setup'); };
+window._goWH = ()=>{ practica.setModo('wh'); ui.toggleMenuDropdown(false); ui.mostrar('setup'); };
