@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, render_template, Response
 import json
 import os
 import random
+import re
 from datetime import datetime
 from io import StringIO
 from typing import List, Dict
@@ -107,6 +108,11 @@ def _gerund(base: str) -> str:
     return w + "ing"
 
 def _autofill_continuous(v: Dict) -> Dict:
+    """
+    Normaliza el campo 'continuo' para que siempre tenga el formato:
+    'was / were <gerundio>'. Si el JSON trae solo el gerundio (p.ej. 'going'),
+    lo completa a 'was / were going'.
+    """
     base = v.get("presente") or v.get("base") or ""
     v.setdefault("traduccion", "")
     v.setdefault("traduccion_pasado", v.get("traduccion", ""))
@@ -116,6 +122,11 @@ def _autofill_continuous(v: Dict) -> Dict:
     if not v["continuo"]:
         g = _gerund(base)
         v["continuo"] = f"was / were {g}" if g else ""
+    else:
+        cont_raw = (v["continuo"] or "").strip()
+        cont_lc  = cont_raw.lower()
+        if (not re.search(r"\bwas\b|\bwere\b", cont_lc)) and re.search(r"\b\w+ing\b", cont_lc):
+            v["continuo"] = f"was / were {cont_raw}"
 
     if not v["traduccion_continuo"]:
         v["traduccion_continuo"] = v.get("traduccion_pasado") or v.get("traduccion") or ""
@@ -143,7 +154,6 @@ def _normalize_verb_input(v: Dict) -> Dict:
     return out
 
 def _normalize_verb_strict_for_add(data: Dict) -> Dict:
-    # Requisitos mínimos
     req_min = ["presente", "pasado", "traduccion", "categoria"]
     if not all(k in data and str(data[k]).strip() for k in req_min):
         raise ValueError("Faltan campos obligatorios (presente, pasado, traducción y categoría).")
@@ -152,7 +162,6 @@ def _normalize_verb_strict_for_add(data: Dict) -> Dict:
     return _normalize_verb_input(data)
 
 def _migrate_if_missing():
-    # Si no existe en /var/data, seed desde repo (solo una vez)
     if not os.path.exists(VERBOS_FILE):
         seed = _read_json("verbos.json", [])
         seed_norm = [_normalize_verb_input(v) for v in seed]
