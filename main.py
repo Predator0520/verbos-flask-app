@@ -1,9 +1,9 @@
-from flask import Flask, jsonify, request, render_template, Response, send_file
+from flask import Flask, jsonify, request, render_template, Response, send_file, make_response
 import json
 import os
 import random
 from datetime import datetime
-from io import StringIO
+from io import StringIO, BytesIO
 from typing import List, Dict
 
 app = Flask(__name__)
@@ -33,47 +33,16 @@ if not _writable(DATA_DIR):
 VERBOS_FILE = os.path.join(DATA_DIR, "verbos.json")
 STATS_FILE  = os.path.join(DATA_DIR, "stats.json")
 
-# Archivo(s) de portada (imagen persistente)
-PORTADA_BASE = os.path.join(DATA_DIR, "portada")  # usaremos portada.png/.jpg/.jpeg/.webp
-PORTADA_EXTS = [".png", ".jpg", ".jpeg", ".webp"]
+# Archivo de portada (permitimos varias extensiones)
+ALLOWED_EXTS = ("png","jpg","jpeg","webp","gif")
+def _portada_candidates():
+    return [os.path.join(DATA_DIR, f"portada.{ext}") for ext in ALLOWED_EXTS]
 
-
-def _portada_find_path():
-    for ext in PORTADA_EXTS:
-        p = PORTADA_BASE + ext
+def _portada_current_path():
+    for p in _portada_candidates():
         if os.path.exists(p):
             return p
     return None
-
-def _portada_save(file_storage):
-    # Validar extensión por nombre y content-type
-    filename = (file_storage.filename or "").lower()
-    ext = None
-    for e in PORTADA_EXTS:
-        if filename.endswith(e):
-            ext = e
-            break
-    if not ext:
-        # fallback: intentar por mimetype
-        ct = (file_storage.mimetype or "").lower()
-        if "png" in ct: ext = ".png"
-        elif "jpeg" in ct or "jpg" in ct: ext = ".jpg"
-        elif "webp" in ct: ext = ".webp"
-    if not ext:
-        raise ValueError("Formato no soportado. Usa PNG, JPG/JPEG o WEBP.")
-
-    # Borrar versiones anteriores
-    for e in PORTADA_EXTS:
-        old = PORTADA_BASE + e
-        if os.path.exists(old):
-            try: os.remove(old)
-            except Exception: pass
-
-    # Guardar
-    out_path = PORTADA_BASE + ext
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    file_storage.save(out_path)
-    return out_path
 
 # =======================
 #     JSON HELPERS
@@ -228,54 +197,6 @@ def save_stats(stats: List[Dict]):
 @app.route("/")
 def index():
     return render_template("index.html")
-
-# ============
-#  PORTADA (NUEVO)
-# ============
-@app.route("/portada", methods=["GET", "HEAD"])
-def portada():
-    path = _portada_find_path()
-    if not path:
-        return ("", 404)
-    # mimetype por extensión
-    ext = os.path.splitext(path)[1].lower()
-    if ext == ".png": mt = "image/png"
-    elif ext in (".jpg", ".jpeg"): mt = "image/jpeg"
-    elif ext == ".webp": mt = "image/webp"
-    else: mt = "application/octet-stream"
-    return send_file(path, mimetype=mt)
-
-@app.route("/portada_exists", methods=["GET"])
-def portada_exists():
-    return jsonify({"exists": bool(_portada_find_path())})
-
-@app.route("/upload_portada", methods=["POST"])
-def upload_portada():
-    if "file" not in request.files:
-        return jsonify({"ok": False, "msg": "No se recibió archivo"}), 400
-    f = request.files["file"]
-    if not f.filename:
-        return jsonify({"ok": False, "msg": "Archivo sin nombre"}), 400
-    try:
-        out_path = _portada_save(f)
-        return jsonify({"ok": True, "msg": "📷 Portada actualizada", "path": os.path.basename(out_path)})
-    except ValueError as e:
-        return jsonify({"ok": False, "msg": str(e)}), 400
-    except Exception:
-        return jsonify({"ok": False, "msg": "No se pudo guardar la imagen"}), 500
-
-@app.route("/delete_portada", methods=["DELETE"])
-def delete_portada():
-    removed = False
-    for e in PORTADA_EXTS:
-        p = PORTADA_BASE + e
-        if os.path.exists(p):
-            try:
-                os.remove(p)
-                removed = True
-            except Exception:
-                pass
-    return jsonify({"ok": True, "removed": removed})
 
 # ============
 #  VERBOS API
@@ -583,6 +504,65 @@ def usuarios():
         if s.get("usuario","").strip() and s.get("usuario","").lower() != "invitado"
     })
     return jsonify(names)
+
+# ======================
+#     PORTADA (imagen)
+# ======================
+# 1x1 PNG transparente por defecto
+_TRANSPARENT_PNG = bytes.fromhex(
+    "89504E470D0A1A0A0000000D4948445200000001000000010806000000"
+    "1F15C4890000000A49444154789C6360000002000100"
+    "05FE02FEA7C65D0000000049454E44AE426082"
+)
+
+@app.route("/portada", methods=["GET"])
+def portada_get():
+    path = _portada_current_path()
+    if path and os.path.exists(path):
+        resp = make_response(send_file(path, conditional=True))
+    else:
+        resp = make_response(send_file(BytesIO(_TRANSPARENT_PNG), mimetype="image/png"))
+    # Evitar caché para que se vea la última
+    resp.headers["Cache-Control"] = "no-store, max-age=0"
+    return resp
+
+@app.route("/portada", methods=["POST"])
+def portada_post():
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"ok": False, "msg": "No se recibió archivo"}), 400
+
+    # validar extensión
+    filename = f.filename.lower()
+    ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
+    if ext not in ALLOWED_EXTS:
+        return jsonify({"ok": False, "msg": "Formato no permitido (png, jpg, jpeg, webp, gif)"}), 400
+
+    # eliminar anteriores
+    for cand in _portada_candidates():
+        try:
+            if os.path.exists(cand):
+                os.remove(cand)
+        except Exception:
+            pass
+
+    save_path = os.path.join(DATA_DIR, f"portada.{ext}")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    f.save(save_path)
+
+    return jsonify({"ok": True, "msg": "✅ Portada actualizada"})
+
+@app.route("/portada", methods=["DELETE"])
+def portada_delete():
+    ok = False
+    for cand in _portada_candidates():
+        if os.path.exists(cand):
+            try:
+                os.remove(cand)
+                ok = True
+            except Exception:
+                pass
+    return jsonify({"ok": ok, "msg": "🗑️ Portada eliminada" if ok else "No había portada"})
 
 @app.route("/health", methods=["GET"])
 def health():
