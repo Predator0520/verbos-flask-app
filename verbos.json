@@ -1,253 +1,34 @@
-# We'll build a 200-verb dataset with the user's required fields.
-# Fields: base, traduccion, past, traduccion_past, continuo, traduccion_continuo, category
-
-import json, re
-from pathlib import Path
-
-def gerund_en(base: str) -> str:
-    w = base.lower().strip()
-    if not w:
-        return ""
-    # Special cases
-    specials = {
-        "be": "being",
-        "lie": "lying",
-        "die": "dying",
-        "tie": "tying",
-        "see": "seeing",
-    }
-    if w in specials:
-        return specials[w]
-    if w.endswith("ie"):
-        return w[:-2] + "ying"
-    if w.endswith("e") and not w.endswith("ee"):
-        return w[:-1] + "ing"
-    # CVC doubling (simple heuristic)
-    vowels = "aeiou"
-    if len(w) >= 3 and w[-1] not in vowels and w[-2] in vowels and w[-3] not in vowels and w[-1] not in "wxy":
-        return w + w[-1] + "ing"
-    return w + "ing"
-
-def past_regular(base: str) -> str:
-    w = base.lower().strip()
-    if not w:
-        return ""
-    # y->ied
-    if w.endswith("y") and len(w) > 1 and w[-2] not in "aeiou":
-        return w[:-1] + "ied"
-    # e->ed
-    if w.endswith("e"):
-        return w + "d"
-    # CVC doubling basic
-    vowels = "aeiou"
-    if len(w) >= 3 and w[-1] not in vowels and w[-2] in vowels and w[-3] not in vowels and w[-1] not in "wxy":
-        return w + w[-1] + "ed"
-    return w + "ed"
-
-# Irregular verbs map: base -> (past, spanish)
-irreg = {
-    "be": ("was / were", "ser, estar"),
-    "become": ("became", "convertirse en"),
-    "begin": ("began", "empezar"),
-    "bend": ("bent", "doblar"),
-    "bet": ("bet", "apostar"),
-    "bite": ("bit", "morder"),
-    "bleed": ("bled", "sangrar"),
-    "blow": ("blew", "soplar"),
-    "break": ("broke", "romper"),
-    "bring": ("brought", "traer"),
-    "build": ("built", "construir"),
-    "buy": ("bought", "comprar"),
-    "catch": ("caught", "atrapar"),
-    "choose": ("chose", "elegir"),
-    "come": ("came", "venir"),
-    "cost": ("cost", "costar"),
-    "cut": ("cut", "cortar"),
-    "deal": ("dealt", "tratar, negociar"),
-    "dig": ("dug", "cavar"),
-    "do": ("did", "hacer"),
-    "draw": ("drew", "dibujar"),
-    "dream": ("dreamed", "soñar"), # simple past variant
-    "drink": ("drank", "beber"),
-    "drive": ("drove", "conducir"),
-    "eat": ("ate", "comer"),
-    "fall": ("fell", "caerse"),
-    "feed": ("fed", "alimentar"),
-    "feel": ("felt", "sentir"),
-    "fight": ("fought", "pelear"),
-    "find": ("found", "encontrar"),
-    "fly": ("flew", "volar"),
-    "forget": ("forgot", "olvidar"),
-    "forgive": ("forgave", "perdonar"),
-    "freeze": ("froze", "congelar"),
-    "get": ("got", "conseguir"),
-    "give": ("gave", "dar"),
-    "go": ("went", "ir"),
-    "grow": ("grew", "crecer"),
-    "hang": ("hung", "colgar"),
-    "have": ("had", "tener"),
-    "hear": ("heard", "oír"),
-    "hide": ("hid", "esconder"),
-    "hit": ("hit", "golpear"),
-    "hold": ("held", "agarrar"),
-    "hurt": ("hurt", "herir, doler"),
-    "keep": ("kept", "mantener"),
-    "know": ("knew", "conocer, saber"),
-    "lay": ("laid", "poner, colocar"),
-    "lead": ("led", "liderar, conducir"),
-    "leave": ("left", "partir"),
-    "lend": ("lent", "prestar"),
-    "let": ("let", "permitir"),
-    "lie": ("lay", "tumbarse, acostarse"),
-    "light": ("lit", "encender, alumbrar"),
-    "lose": ("lost", "perder"),
-    "make": ("made", "hacer"),
-    "mean": ("meant", "significar, querer decir"),
-    "meet": ("met", "conocer, encontrarse"),
-    "pay": ("paid", "pagar"),
-    "put": ("put", "poner"),
-    "read": ("read", "leer"),
-    "ride": ("rode", "montar"),
-    "ring": ("rang", "sonar"),
-    "rise": ("rose", "elevarse, levantarse"),
-    "run": ("ran", "correr"),
-    "say": ("said", "decir"),
-    "see": ("saw", "ver"),
-    "sell": ("sold", "vender"),
-    "send": ("sent", "enviar"),
-    "set": ("set", "fijar, colocar"),
-    "shake": ("shook", "sacudir"),
-    "shine": ("shone", "brillar"),
-    "shoot": ("shot", "disparar"),
-    "show": ("showed", "mostrar"),
-    "shrink": ("shrank", "encoger"),
-    "shut": ("shut", "cerrar"),
-    "sing": ("sang", "cantar"),
-    "sink": ("sank", "hundirse"),
-    "sit": ("sat", "sentarse"),
-    "sleep": ("slept", "dormir"),
-    "slide": ("slid", "deslizar"),
-    "speak": ("spoke", "hablar"),
-    "spend": ("spent", "gastar"),
-    "split": ("split", "partir, dividir"),
-    "stand": ("stood", "pararse"),
-    "steal": ("stole", "robar"),
-    "stick": ("stuck", "pegar (adherir)"),
-    "sting": ("stung", "picar"),
-    "swear": ("swore", "jurar"),
-    "sweep": ("swept", "barrer"),
-    "swim": ("swam", "nadar"),
-    "swing": ("swung", "balancearse"),
-    "take": ("took", "llevar"),
-    "teach": ("taught", "enseñar"),
-    "tell": ("told", "contar"),
-    "think": ("thought", "pensar"),
-    "throw": ("threw", "lanzar"),
-    "understand": ("understood", "entender"),
-    "wake": ("woke", "despertar"),
-    "wear": ("wore", "usar (ropa)"),
-    "win": ("won", "ganar"),
-    "write": ("wrote", "escribir"),
-    "weep": ("wept", "llorar"),
-    "withdraw": ("withdrew", "retirar(se)"),
-    "withstand": ("withstood", "soportar"),
-    "wind": ("wound", "enrollar, dar cuerda"),
-    "arise": ("arose", "surgir"),
-    "awake": ("awoke", "despertar"),
-    "bind": ("bound", "atar"),
-    "forbid": ("forbade", "prohibir"),
-    "overtake": ("overtook", "adelantar"),
-    "upset": ("upset", "alterar"),
-    "forecast": ("forecast", "pronosticar"),
-    "blew": ("blew", "soplar")  # will be ignored if base not match; harmless
-}
-
-# Regular verbs list: base -> spanish
-regular_list = {
-    "accept":"aceptar","add":"añadir","allow":"permitir","answer":"responder","arrive":"llegar",
-    "ask":"preguntar","bake":"hornear","call":"llamar","carry":"llevar","change":"cambiar",
-    "clean":"limpiar","close":"cerrar","climb":"escalar","collect":"recoger","compare":"comparar",
-    "complete":"completar","cook":"cocinar","copy":"copiar","count":"contar","dance":"bailar",
-    "deliver":"entregar","describe":"describir","design":"diseñar","destroy":"destruir","develop":"desarrollar",
-    "discover":"descubrir","divide":"dividir","email":"enviar por correo","enjoy":"disfrutar","enter":"entrar",
-    "escape":"escapar","explain":"explicar","fail":"fallar","fill":"llenar","film":"filmar",
-    "finish":"terminar","fix":"arreglar","follow":"seguir","form":"formar","fry":"freír",
-    "guess":"adivinar","help":"ayudar","hope":"esperar (tener esperanza)","imagine":"imaginar","improve":"mejorar",
-    "include":"incluir","increase":"aumentar","invite":"invitar","join":"unirse","jump":"saltar",
-    "kick":"patear","kill":"matar","kiss":"besar","laugh":"reír","learn":"aprender",
-    "like":"gustar","listen":"escuchar","live":"vivir","look":"mirar","love":"amar",
-    "marry":"casarse","move":"mover(se)","need":"necesitar","open":"abrir","order":"ordenar, pedir",
-    "paint":"pintar","phone":"telefonear","plan":"planear","play":"jugar, tocar","point":"señalar",
-    "prefer":"preferir","prepare":"preparar","press":"presionar","print":"imprimir","pull":"jalar",
-    "push":"empujar","rain":"llover","reach":"alcanzar","receive":"recibir","record":"grabar",
-    "remember":"recordar","repeat":"repetir","report":"reportar","return":"regresar","save":"guardar",
-    "start":"empezar","stay":"quedarse","study":"estudiar","talk":"hablar","travel":"viajar",
-    "try":"intentar","turn":"girar","use":"usar","visit":"visitar","wait":"esperar",
-    "walk":"caminar","want":"querer","wash":"lavar","watch":"ver, mirar","work":"trabajar",
-    "borrow":"pedir prestado","close":"cerrar","cover":"cubrir","cross":"cruzar","cry":"llorar",
-    "dress":"vestir","end":"terminar","fill":"llenar","greet":"saludar","guard":"proteger",
-    "hug":"abrazar","hunt":"cazar","jog":"trotar","mail":"enviar por correo","mark":"marcar",
-    "miss":"extrañar","name":"nombrar","pack":"empacar","pass":"pasar","plant":"plantar",
-    "promise":"prometer","rescue":"rescatar","sail":"navegar","share":"compartir","smile":"sonreír",
-    "smoke":"fumar","snow":"nevar","spell":"deletrear","step":"pisar","stop":"detener",
-    "study":"estudiar","thank":"agradecer","touch":"tocar","type":"tipear","yell":"gritar"
-}
-
-# Build dataset
-data = []
-
-def add_item(base, past, es, category):
-    item = {
-        "base": base,
-        "traduccion": es,
-        "past": past,
-        "traduccion_past": es,  # keep same to satisfy required field; user can refine
-        "continuo": gerund_en(base),
-        "traduccion_continuo": "estaba " + es,  # simple fallback
-        "category": category
-    }
-    data.append(item)
-
-# Add irregulars
-for base, (past, es) in irreg.items():
-    # skip bogus key 'blew'
-    if base not in re.findall(r'^[a-z]+$', base) and base not in irreg:
-        continue
-for base, (past, es) in irreg.items():
-    if base.isalpha():
-        add_item(base, past, es, "irregular")
-
-# Fill up to 200 with regulars (avoid duplicates)
-for base, es in regular_list.items():
-    if len(data) >= 200:
-        break
-    if any(d["base"] == base for d in data):
-        continue
-    add_item(base, past_regular(base), es, "regular")
-
-# If still less than 200, add some extra simple regulars
-extras = {
-    "answer":"responder","arrange":"organizar","attack":"atacar","believe":"creer","brush":"cepillar",
-    "care":"cuidar","carry":"llevar","check":"revisar","clap":"aplaudir","close":"cerrar",
-    "cycle":"andar en bici","decorate":"decorar","deliver":"entregar","drop":"soltar","earn":"ganar (dinero)",
-    "end":"terminar","enjoy":"disfrutar","film":"filmar","gather":"reunir","hug":"abrazar",
-    "identify":"identificar","joke":"bromear","knock":"tocar (la puerta)","label":"etiquetar","land":"aterrizar",
-    "mail":"enviar por correo","move":"mover","note":"anotar","obey":"obedecer","paint":"pintar",
-    "play":"jugar","practice":"practicar","question":"preguntar","reply":"responder","search":"buscar",
-    "shout":"gritar","skip":"saltar","smell":"oler","tidy":"ordenar","travel":"viajar",
-    "visit":"visitar","wash":"lavar","wave":"saludar (con la mano)","whisper":"susurrar","work":"trabajar"
-}
-for base, es in extras.items():
-    if len(data) >= 200:
-        break
-    if any(d["base"] == base for d in data):
-        continue
-    add_item(base, past_regular(base), es, "regular")
-
-# Trim or pad exactly 200
-data = data[:200]
-
-out_path = Path("/mnt/data/verbos-200.json")
-out_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-len(data), data[0], str(out_path)
+[
+  {"base":"be","traduccion":"ser, estar","past":"was / were","traduccion_past":"fui / estuve","continuo":"being","traduccion_continuo":"estaba siendo / estaba estando"},
+  {"base":"become","traduccion":"convertirse en","past":"became","traduccion_past":"me convertí","continuo":"becoming","traduccion_continuo":"me estaba convirtiendo"},
+  {"base":"build","traduccion":"construir","past":"built","traduccion_past":"construí","continuo":"building","traduccion_continuo":"estaba construyendo"},
+  {"base":"buy","traduccion":"comprar","past":"bought","traduccion_past":"compré","continuo":"buying","traduccion_continuo":"estaba comprando"},
+  {"base":"can","traduccion":"poder","past":"could","traduccion_past":"pude","continuo":"being able to","traduccion_continuo":"estaba pudiendo"},
+  {"base":"choose","traduccion":"elegir","past":"chose","traduccion_past":"elegí","continuo":"choosing","traduccion_continuo":"estaba eligiendo"},
+  {"base":"come","traduccion":"venir","past":"came","traduccion_past":"vine","continuo":"coming","traduccion_continuo":"estaba viniendo"},
+  {"base":"do","traduccion":"hacer","past":"did","traduccion_past":"hice","continuo":"doing","traduccion_continuo":"estaba haciendo"},
+  {"base":"draw","traduccion":"dibujar","past":"drew","traduccion_past":"dibujé","continuo":"drawing","traduccion_continuo":"estaba dibujando"},
+  {"base":"drink","traduccion":"beber","past":"drank","traduccion_past":"bebí","continuo":"drinking","traduccion_continuo":"estaba bebiendo"},
+  {"base":"drive","traduccion":"conducir","past":"drove","traduccion_past":"conduje","continuo":"driving","traduccion_continuo":"estaba conduciendo"},
+  {"base":"eat","traduccion":"comer","past":"ate","traduccion_past":"comí","continuo":"eating","traduccion_continuo":"estaba comiendo"},
+  {"base":"fall","traduccion":"caerse","past":"fell","traduccion_past":"me caí","continuo":"falling","traduccion_continuo":"me estaba cayendo"},
+  {"base":"feel","traduccion":"sentir","past":"felt","traduccion_past":"sentí","continuo":"feeling","traduccion_continuo":"estaba sintiendo"},
+  {"base":"fly","traduccion":"volar","past":"flew","traduccion_past":"volé","continuo":"flying","traduccion_continuo":"estaba volando"},
+  {"base":"get","traduccion":"conseguir","past":"got","traduccion_past":"conseguí","continuo":"getting","traduccion_continuo":"estaba consiguiendo"},
+  {"base":"give","traduccion":"dar","past":"gave","traduccion_past":"di","continuo":"giving","traduccion_continuo":"estaba dando"},
+  {"base":"go","traduccion":"ir","past":"went","traduccion_past":"fui","continuo":"going","traduccion_continuo":"estaba yendo"},
+  {"base":"hang","traduccion":"colgar","past":"hung","traduccion_past":"colgué","continuo":"hanging","traduccion_continuo":"estaba colgando"},
+  {"base":"have","traduccion":"tener","past":"had","traduccion_past":"tuve","continuo":"having","traduccion_continuo":"estaba teniendo"},
+  {"base":"hear","traduccion":"oír","past":"heard","traduccion_past":"oí","continuo":"hearing","traduccion_continuo":"estaba oyendo"},
+  {"base":"hold","traduccion":"agarrar","past":"held","traduccion_past":"agarré","continuo":"holding","traduccion_continuo":"estaba agarrando"},
+  {"base":"know","traduccion":"conocer, saber","past":"knew","traduccion_past":"conocí / supe","continuo":"knowing","traduccion_continuo":"estaba conociendo / sabiendo"},
+  {"base":"leave","traduccion":"partir","past":"left","traduccion_past":"partí","continuo":"leaving","traduccion_continuo":"estaba partiendo"},
+  {"base":"lose","traduccion":"perder","past":"lost","traduccion_past":"perdí","continuo":"losing","traduccion_continuo":"estaba perdiendo"},
+  {"base":"make","traduccion":"hacer","past":"made","traduccion_past":"hice","continuo":"making","traduccion_continuo":"estaba haciendo"},
+  {"base":"meet","traduccion":"conocer, encontrarse","past":"met","traduccion_past":"conocí / me encontré","continuo":"meeting","traduccion_continuo":"estaba conociendo / encontrando"},
+  {"base":"pay","traduccion":"pagar","past":"paid","traduccion_past":"pagué","continuo":"paying","traduccion_continuo":"estaba pagando"},
+  {"base":"read","traduccion":"leer","past":"read","traduccion_past":"leí","continuo":"reading","traduccion_continuo":"estaba leyendo"},
+  {"base":"ride","traduccion":"montar","past":"rode","traduccion_past":"monté","continuo":"riding","traduccion_continuo":"estaba montando"},
+  {"base":"run","traduccion":"correr","past":"ran","traduccion_past":"corrí","continuo":"running","traduccion_continuo":"estaba corriendo"},
+  {"base":"say","traduccion":"decir","past":"said","traduccion_past":"dije","continuo":"saying","traduccion_continuo":"estaba diciendo"},
+  {"base":"see","traduccion":"ver","past":"saw","traduccion_past":"vi","continuo":"seeing","traduccion_continuo":"estaba viendo"},
