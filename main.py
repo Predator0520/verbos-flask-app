@@ -82,16 +82,6 @@ def _write_json_safe(path: str, data, do_backup=False):
         _backup_rotate(path)
     _write_json_atomic(path, data)
 
-def _migrate_if_missing():
-    # Si no existe en /var/data, seed desde repo
-    if not os.path.exists(VERBOS_FILE):
-        seed = _read_json("verbos.json", [])
-        seed_norm = [_normalize_verb_input(v) for v in seed]
-        _write_json_safe(VERBOS_FILE, seed_norm, do_backup=False)
-    if not os.path.exists(STATS_FILE):
-        seed = _read_json("stats.json", [])
-        _write_json_safe(STATS_FILE, seed, do_backup=False)
-
 # =======================
 #   LENGUAJE & NORMALIZ.
 # =======================
@@ -153,13 +143,23 @@ def _normalize_verb_input(v: Dict) -> Dict:
     return out
 
 def _normalize_verb_strict_for_add(data: Dict) -> Dict:
-    # Requisitos mínimos: permitimos omitir traduccion_pasado (se completa)
+    # Requisitos mínimos
     req_min = ["presente", "pasado", "traduccion", "categoria"]
     if not all(k in data and str(data[k]).strip() for k in req_min):
         raise ValueError("Faltan campos obligatorios (presente, pasado, traducción y categoría).")
     if not data.get("traduccion_pasado"):
         data["traduccion_pasado"] = data.get("traduccion", "")
     return _normalize_verb_input(data)
+
+def _migrate_if_missing():
+    # Si no existe en /var/data, seed desde repo (solo una vez)
+    if not os.path.exists(VERBOS_FILE):
+        seed = _read_json("verbos.json", [])
+        seed_norm = [_normalize_verb_input(v) for v in seed]
+        _write_json_safe(VERBOS_FILE, seed_norm, do_backup=False)
+    if not os.path.exists(STATS_FILE):
+        seed = _read_json("stats.json", [])
+        _write_json_safe(STATS_FILE, seed, do_backup=False)
 
 _migrate_if_missing()
 
