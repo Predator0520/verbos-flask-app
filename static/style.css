@@ -93,29 +93,6 @@ main{max-width:1100px;margin:24px auto;padding:0 12px}
 .simple-list{margin:8px 0 0; padding-left:18px}
 .simple-list li{margin:4px 0}
 
-/* Portada */
-.portada-wrap{ margin-bottom:14px }
-.portada-box{
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16/9;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #f7f8fc;
-}
-.portada-box img{
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display:block;
-}
-.portada-empty{
-  position:absolute; inset:0;
-  display:flex; align-items:center; justify-content:center;
-  color:#6b7280; font-weight:700;
-}
-
 /* Cards (legacy) */
 .cards{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:8px}
 .card{
@@ -205,6 +182,27 @@ input[type="text"], select{
 }
 .mc-option:hover{ transform: translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.15) }
 
+/* Portada */
+.portada-box{
+  padding:12px;
+  border:1px dashed var(--border);
+  border-radius:12px;
+  background:#fff;
+  display:block;
+  max-width:100%;
+  overflow:hidden;
+}
+#portada-img{
+  max-width:100%;
+  height:auto;
+  max-height:320px;    /* <-- más pequeño y controlado */
+  object-fit:contain;  /* se ajusta sin deformarse */
+  display:block;
+  margin:0 auto;
+  border-radius:10px;
+  cursor:pointer;      /* indica que es clickeable */
+}
+
 /* Dark mode */
 .dark{background: var(--navy); color: var(--text-dark)}
 .dark .topbar{background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08)}
@@ -227,15 +225,4 @@ input[type="text"], select{
 .dark .dropdown-menu .menu-item{ background:#0f172a; color:#e5e7eb; border-color:#334155 }
 .dark .dropdown-menu .menu-item:hover{ background:#0b1224 }
 .dark .kpi, .dark .panel-sub{ background:#0f172a; border-color:#334155 }
-.dark .portada-box{ background:#0b1224; border-color:#334155 }
-.dark .portada-empty{ color:#9ca3af }
-/* Ajuste de tamaño para la imagen de portada */
-#portada-img {
-    max-width: 100%;
-    height: auto;
-    max-height: 400px; /* altura máxima visible */
-    object-fit: contain; /* evita deformar */
-    display: block;
-    margin: 0 auto; /* centra horizontalmente */
-    border-radius: 10px; /* bordes redondeados opcionales */
-}
+.dark .portada-box{ background:#0f172a; border-color:#334155 }
