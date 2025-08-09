@@ -58,10 +58,16 @@ const ui = {
         .join("") || "<li>(Sin verbos)</li>";
       document.getElementById("homeVerbos").innerHTML = ultVerbos;
 
+      // refrescar portada evitando caché
+      const img = document.getElementById("portada-img");
+      if (img) img.src = "/portada?ts=" + Date.now();
+
     }catch(e){
       console.error(e);
       document.getElementById("homeUltimos").innerHTML = "<li>Error cargando datos</li>";
       document.getElementById("homeVerbos").innerHTML  = "<li>Error cargando datos</li>";
+      const img = document.getElementById("portada-img");
+      if (img) img.src = "/portada?ts=" + Date.now();
     }
   },
 
@@ -299,6 +305,7 @@ const datos = {
 
 // ===== PRÁCTICA =====
 
+// Banco WH (para armar opciones en traducción)
 const WH_BANK = [
   {en:"who", es:"quién"},
   {en:"what", es:"qué"},
@@ -315,9 +322,10 @@ const WH_BANK = [
 function _shuffle(a){ return a.sort(()=>Math.random()-0.5); }
 
 function whToMCQ(q){
+  // q.pregunta: "Traduce al español: 'who'"  o  "Traduce al inglés: 'quién'"
   const m = q.pregunta.match(/Traduce al (español|inglés): '(.+?)'/i);
   if(!m) return q;
-  const target = m[1].toLowerCase();
+  const target = m[1].toLowerCase();    // español | inglés
   const word   = m[2].toLowerCase();
 
   let correct = "", pool = [];
@@ -336,8 +344,8 @@ function whToMCQ(q){
 }
 
 const practica = {
-  modo:"simple",
-  whTipo:"traduccion",
+  modo:"simple",     // simple | continuous | wh
+  whTipo:"traduccion", // traduccion | oraciones
   usuario:"invitado",
   tipo:"todos",
   cantidad:10,
@@ -389,22 +397,25 @@ const practica = {
           const quoted = m ? m[1] : null;
 
           const P = q.pregunta.toLowerCase();
+          // simple
           if (P.includes("¿cuál es el pasado de ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted]);
+            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = pasado, quoted = presente
             return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
           }
           if (P.includes("¿cuál es el presente de ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted]);
+            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = presente, quoted = pasado
             return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
           }
+          // continuous
           if (P.includes("¿cuál es el pasado continuo de ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted]);
+            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = cont, quoted = base
             return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
           }
           if (P.includes("¿cuál es el presente del continuo ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted]);
+            const opciones=_shuffle([q.respuesta, quoted]); // respuesta = base, quoted = cont
             return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
           }
+          // otras (traducciones) permanecen como respuesta libre
           return q;
         });
       }
@@ -439,7 +450,7 @@ const practica = {
     const q = this.preguntas[this.idx % this.preguntas.length];
     document.getElementById("pregunta").textContent=q.pregunta;
 
-    if (Array.isArray(q.opciones)){
+    if (Array.isArray(q.opciones)){ // opción múltiple
       boxLibre.classList.add("hidden"); boxOpc.classList.remove("hidden");
       boxOpc.innerHTML="";
       q.opciones.forEach((op,i)=>{
@@ -554,73 +565,6 @@ document.addEventListener("keydown",(e)=>{
   btn.onclick=()=>apply(!document.body.classList.contains("dark"));
 })();
 
-/* ===== Portada (upload/delete) ===== */
-async function uploadPortada(file){
-  const msg = document.getElementById("portadaMsg");
-  msg.textContent = "Subiendo...";
-  try{
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/upload_portada", { method:"POST", body: fd });
-    let data;
-    try { data = await res.json(); } catch { data = { ok:false, msg:"Respuesta inválida del servidor" }; }
-    if(!res.ok || !data.ok){
-      msg.textContent = data && data.msg ? data.msg : "No se pudo subir la imagen";
-      alert(msg.textContent);
-      return;
-    }
-    const img = document.getElementById("portada-img");
-    img.src = "/portada?ts=" + Date.now(); // cache-busting
-    msg.textContent = "✔ Imagen cargada";
-  }catch(e){
-    console.error(e);
-    msg.textContent = "Error subiendo imagen";
-    alert("Error subiendo imagen");
-  } finally {
-    setTimeout(()=>{ msg.textContent=""; }, 2500);
-  }
-}
-async function deletePortada(){
-  const msg = document.getElementById("portadaMsg");
-  try{
-    const ok = confirm("¿Quitar imagen de portada?");
-    if (!ok) return;
-    msg.textContent = "Eliminando...";
-    const res = await fetch("/delete_portada", { method:"DELETE" });
-    await res.json();
-    const img = document.getElementById("portada-img");
-    img.src = "/portada?ts=" + Date.now(); // placeholder
-    msg.textContent = "✔ Imagen eliminada";
-  }catch(e){
-    console.error(e);
-    msg.textContent = "Error al quitar la imagen";
-    alert("Error al quitar la imagen");
-  } finally {
-    setTimeout(()=>{ msg.textContent=""; }, 2500);
-  }
-}
-
-/* Listeners robustos para que siempre abra el file picker */
-(function portadaInit(){
-  const input = document.getElementById("filePortada");
-  const btnUp = document.getElementById("btnSubirPortada");
-  const btnDel= document.getElementById("btnQuitarPortada");
-  const img   = document.getElementById("portada-img");
-
-  if (input){
-    input.addEventListener("change", (e)=>{
-      const f = e.target.files && e.target.files[0];
-      if (f) uploadPortada(f);
-      input.value = "";
-    });
-  }
-  const openPicker = ()=> input && input.click();
-
-  if (btnUp)  btnUp.addEventListener("click", openPicker);
-  if (img)    img.addEventListener("click", openPicker);
-  if (btnDel) btnDel.addEventListener("click", deletePortada);
-})();
-
 // Inicio
 ui.mostrar("menu");
 
@@ -628,3 +572,31 @@ ui.mostrar("menu");
 window._goSimple = ()=>{ practica.setModo('simple'); ui.toggleMenuDropdown(false); ui.mostrar('setup'); };
 window._goContinuous = ()=>{ practica.setModo('continuous'); ui.toggleMenuDropdown(false); ui.mostrar('setup'); };
 window._goWH = ()=>{ practica.setModo('wh'); ui.toggleMenuDropdown(false); ui.mostrar('setup'); };
+
+// ===== Portada: subir / eliminar =====
+window.uploadPortada = async (file)=>{
+  try{
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/portada", { method:"POST", body: fd });
+    const data = await res.json();
+    if (!data.ok){ alert(data.msg || "No se pudo subir la imagen"); return; }
+    const img = document.getElementById("portada-img");
+    if (img) img.src = "/portada?ts=" + Date.now(); // bust cache
+  }catch(e){
+    console.error(e);
+    alert("Error subiendo la imagen");
+  }
+};
+
+window.deletePortada = async ()=>{
+  try{
+    const res = await fetch("/portada", { method:"DELETE" });
+    const data = await res.json();
+    const img = document.getElementById("portada-img");
+    if (img) img.src = "/portada?ts=" + Date.now();
+  }catch(e){
+    console.error(e);
+    alert("Error al eliminar la portada");
+  }
+};
