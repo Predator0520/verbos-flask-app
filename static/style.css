@@ -182,7 +182,7 @@ input[type="text"], select{
 }
 .mc-option:hover{ transform: translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.15) }
 
-/* Portada */
+/* Portada (ajuste responsivo) */
 .portada-box{
   padding:12px;
   border:1px dashed var(--border);
@@ -195,12 +195,12 @@ input[type="text"], select{
 #portada-img{
   max-width:100%;
   height:auto;
-  max-height:320px;    /* <-- más pequeño y controlado */
-  object-fit:contain;  /* se ajusta sin deformarse */
+  max-height:clamp(180px, 40vh, 320px);
+  object-fit:contain;
   display:block;
   margin:0 auto;
   border-radius:10px;
-  cursor:pointer;      /* indica que es clickeable */
+  cursor:pointer;
 }
 
 /* Dark mode */
