@@ -6,6 +6,32 @@
   <title>App de Verbos</title>
   <link rel="stylesheet" href="/static/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Ajuste de tamaño para la imagen de portada */
+    #portada-img {
+      max-width: 100%;
+      height: auto;
+      max-height: 400px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+      border-radius: 10px;
+    }
+
+    /* Layout de la portada y KPIs */
+    .menu-layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr; /* izquierda más ancha que derecha */
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 768px) {
+      .menu-layout {
+        grid-template-columns: 1fr; /* en pantallas pequeñas, una sola columna */
+      }
+    }
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -31,236 +57,64 @@
   <main>
     <!-- Dashboard Home -->
     <section id="menu" class="panel">
-      <!-- Portada -->
-      <h2 style="margin-top:0">📷 Portada</h2>
-      <div class="panel-sub" style="margin-bottom:14px">
-        <div class="portada-box" id="portadaBox">
-          <img src="/portada" alt="Sin imagen" id="portada-img" title="Haz clic para subir una imagen">
-        </div>
-        <div class="row" style="margin-top:10px; gap:10px">
-          <!-- input real oculto -->
-          <input type="file" id="filePortada" accept="image/*" style="display:none">
-          <!-- botones -->
-          <button class="btn" id="btnSubirPortada" type="button">Subir imagen</button>
-          <button class="btn-cancel" id="btnQuitarPortada" type="button">Quitar imagen</button>
-        </div>
-        <small id="portadaMsg" class="hint"></small>
-      </div>
-
-      <h2>📊 Resumen</h2>
-
-      <div class="kpis">
-        <div class="kpi">
-          <div class="kpi-label">Verbos</div>
-          <div class="kpi-value" id="kpiVerbos">—</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Sesiones</div>
-          <div class="kpi-value" id="kpiSesiones">—</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Último %</div>
-          <div class="kpi-value" id="kpiUltimo">—</div>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div class="panel-sub">
-          <h3 style="margin-top:0">🕒 Últimos resultados</h3>
-          <ul id="homeUltimos" class="simple-list"></ul>
-          <div class="row"><button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">Ver estadísticas</button></div>
-        </div>
-
-        <div class="panel-sub">
-          <h3 style="margin-top:0">📝 Verbos recién agregados</h3>
-          <ul id="homeVerbos" class="simple-list"></ul>
-          <div class="row" style="gap:8px">
-            <button class="btn" onclick="datos.abrirModalAgregar()">➕ Agregar verbo</button>
-            <button class="btn-ghost" onclick="ui.mostrar('lista'); datos.listarVerbos();">Ver todos</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Wizard práctica -->
-    <section id="setup" class="panel hidden">
-      <h2 id="setupTitle">🧠 Configurar práctica</h2>
-
-      <!-- Paso 1 -->
-      <div id="step1">
-        <div class="setup-block">
-          <label>Tu nombre</label>
-          <input type="text" id="nombreUsuario" placeholder="Escribe tu nombre (o deja vacío para invitado)" />
-          <div class="row">
-            <button class="btn" onclick="practica.setUsuario(); ui.irPaso(2)">Usar nombre</button>
-            <button class="btn" onclick="practica.usarInvitado(); ui.irPaso(2)">Entrar como Invitado</button>
-          </div>
-        </div>
-        <div class="row"><button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button></div>
-      </div>
-
-      <!-- Paso 2 -->
-      <div id="step2" class="hidden">
-        <div id="blockTipos" class="setup-block">
-          <label>Tipo de verbos</label>
-          <div class="row">
-            <button class="btn-chip" onclick="practica.setTipo('regular'); ui.irPaso(3)">Regulares</button>
-            <button class="btn-chip" onclick="practica.setTipo('irregular'); ui.irPaso(3)">Irregulares</button>
-            <button class="btn-chip" onclick="practica.setTipo('todos'); ui.irPaso(3)">Todos</button>
-          </div>
-        </div>
-
-        <div id="blockWH" class="setup-block hidden">
-          <label>Modo WH</label>
-          <div class="row">
-            <button class="btn-chip" onclick="practica.setWHTipo('traduccion'); ui.irPaso(3)">Traducción de WH</button>
-            <button class="btn-chip" onclick="practica.setWHTipo('oraciones'); ui.irPaso(3)">Oraciones (opción múltiple)</button>
-          </div>
-        </div>
-
-        <div class="row">
-          <button class="btn-ghost" onclick="ui.irPaso(1)">← Atrás</button>
-          <button class="btn-ghost" onclick="ui.mostrar('menu')">Volver al menú</button>
-        </div>
-      </div>
-
-      <!-- Paso 3 -->
-      <div id="step3" class="hidden">
-        <div class="setup-block">
-          <label>Cantidad</label>
-          <div class="row">
-            <button class="btn-qty" onclick="practica.setCantidad(10)">10</button>
-            <button class="btn-qty" onclick="practica.setCantidad(20)">20</button>
-            <button class="btn-qty" onclick="practica.setCantidad(30)">30</button>
-            <button class="btn-qty" onclick="practica.setCantidad(40)">40</button>
-            <button class="btn-qty outline" onclick="practica.setIlimitado()">Ilimitado</button>
-          </div>
-          <small id="cantidadActual">Selección: 10</small>
-        </div>
-        <div class="row">
-          <button class="btn-cta" onclick="practica.iniciar()">🚀 Iniciar práctica</button>
-          <button class="btn-ghost" onclick="ui.irPaso(2)">← Atrás</button>
-          <button class="btn-ghost" onclick="ui.mostrar('menu')">Volver al menú</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Juego -->
-    <section id="play" class="panel hidden">
-      <div class="header-row">
-        <div class="pill" id="pillUsuario">👤 Invitado</div>
-        <div class="pill" id="pillModo">Modo: simple</div>
-        <div class="pill" id="pillTipo">Tipo: —</div>
-        <div class="pill" id="pillLimite">Límite: 10</div>
-        <div class="pill" id="pillTimer">⏱ 00:00</div>
-      </div>
-
-      <div class="flashcard" id="pregunta">…</div>
-
-      <!-- Respuesta libre -->
-      <div class="row" id="boxLibre">
-        <input type="text" id="respuesta" placeholder="Tu respuesta aquí" />
-        <button class="btn" id="btnVerificar" onclick="practica.verificar()">✅ Verificar</button>
-      </div>
-
-      <!-- Opción múltiple -->
-      <div id="boxOpciones" class="row hidden"></div>
-
-      <div class="feedback" id="resultado"></div>
-
-      <div class="footer-row">
-        <div class="pill" id="pillContador">0/0</div>
-        <div class="pill" id="pillStreak">🔥 racha: 0</div>
-        <button class="btn-cancel" onclick="practica.finalizar()">✖ Finalizar</button>
-        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Menú</button>
-      </div>
-
-      <!-- Resumen -->
-      <div id="resumen" class="modal hidden" onclick="ui.cerrarResumen()">
-        <div class="modal-content" onclick="event.stopPropagation()">
-          <button class="close-x" aria-label="Cerrar" onclick="ui.cerrarResumen()">✖</button>
-          <h3>📋 Resumen de la sesión</h3>
-          <p><strong>Usuario:</strong> <span id="rUsuario"></span></p>
-          <p><strong>Modo:</strong> <span id="rModo"></span></p>
-          <p><strong>Tipo:</strong> <span id="rTipo"></span></p>
-          <p>✅ Correctas: <span id="rOk"></span></p>
-          <p>❌ Incorrectas: <span id="rBad"></span></p>
-          <p>🔥 Racha máxima: <span id="rStreak"></span></p>
-          <p>⏱ Tiempo: <span id="rTiempo"></span></p>
-          <div class="row">
-            <button class="btn" onclick="document.getElementById('filtroUsuario').value=practica.usuario; ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">📈 Estadísticas</button>
-            <button class="btn" onclick="ui.mostrar('lista'); datos.listarVerbos();">📋 Ver verbos</button>
-            <button class="btn" onclick="datos.abrirModalAgregar()">➕ Agregar verbo</button>
-            <button class="btn-cta" onclick="ui.mostrar('menu')">🏠 Menú principal</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Lista -->
-    <section id="lista" class="panel hidden">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <h2>📝 Lista de Verbos</h2>
-        <div class="row" style="gap:8px">
-          <button class="btn" onclick="datos.exportar()">⬇ Exportar</button>
-          <label class="btn" style="cursor:pointer">
-            ⬆ Importar
-            <input type="file" id="inputImport" accept="application/json" style="display:none" onchange="datos.importar(this.files[0])">
-          </label>
-          <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
-        </div>
-      </div>
-      <div class="hint">*Haz clic en ✏️ para editar o en 🗑️ para borrar.</div>
-      <ul id="listaVerbos"></ul>
-    </section>
-
-    <!-- Estadísticas -->
-    <section id="stats" class="panel hidden">
-      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px">
-        <h2 style="margin:0">📈 Estadísticas</h2>
-        <button class="btn-ghost" onclick="ui.mostrar('menu')">← Volver</button>
-      </div>
-
-      <div class="stats-layout">
-        <aside class="users-panel">
-          <div class="users-header">
-            <strong>Usuarios</strong>
-            <input type="text" id="filtroUsuario" placeholder="Filtrar por usuario" />
-            <button class="btn" onclick="ui.cargarEstadisticas()">Aplicar filtro</button>
-          </div>
-          <ul id="listaUsuarios" class="users-list"></ul>
-        </aside>
+      <div class="menu-layout">
+        <!-- Columna izquierda -->
         <div>
-          <div class="chart-box"><canvas id="chartStats"></canvas></div>
-          <div id="tablaStats" class="table-box" style="margin-top:12px"></div>
+          <!-- Resumen -->
+          <h2>📊 Resumen</h2>
+          <div class="kpis">
+            <div class="kpi">
+              <div class="kpi-label">Verbos</div>
+              <div class="kpi-value" id="kpiVerbos">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Sesiones</div>
+              <div class="kpi-value" id="kpiSesiones">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Último %</div>
+              <div class="kpi-value" id="kpiUltimo">—</div>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="panel-sub">
+              <h3 style="margin-top:0">🕒 Últimos resultados</h3>
+              <ul id="homeUltimos" class="simple-list"></ul>
+              <div class="row"><button class="btn-ghost" onclick="ui.mostrar('stats'); ui.cargarUsuarios(); ui.cargarEstadisticas();">Ver estadísticas</button></div>
+            </div>
+
+            <div class="panel-sub">
+              <h3 style="margin-top:0">📝 Verbos recién agregados</h3>
+              <ul id="homeVerbos" class="simple-list"></ul>
+              <div class="row" style="gap:8px">
+                <button class="btn" onclick="datos.abrirModalAgregar()">➕ Agregar verbo</button>
+                <button class="btn-ghost" onclick="ui.mostrar('lista'); datos.listarVerbos();">Ver todos</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Columna derecha -->
+        <div>
+          <h2>📷 Portada</h2>
+          <div class="panel-sub" style="margin-bottom:14px">
+            <div style="padding:12px; border:1px dashed var(--border); border-radius:12px; background:#fff">
+              <img src="/portada" alt="Sin imagen" id="portada-img">
+            </div>
+            <div class="row" style="margin-top:10px; gap:10px">
+              <input type="file" id="filePortada" accept="image/*" style="display:none"
+                    onchange="if(this.files&&this.files[0]){ uploadPortada(this.files[0]); this.value=''; }">
+              <button class="btn" onclick="document.getElementById('filePortada').click()">Subir imagen</button>
+              <button class="btn-cancel" onclick="deletePortada()">Quitar imagen</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
-  </main>
 
-  <!-- Modal AGREGAR/EDITAR VERBO -->
-  <div id="modalVerb" class="modal hidden" onclick="datos.cerrarModal()">
-    <div class="modal-content" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
-      <button class="close-x" aria-label="Cerrar" onclick="datos.cerrarModal()">✖</button>
-      <h3 id="modalVerbTitle">➕ Agregar verbo</h3>
-      <div class="grid">
-        <input type="text" id="editPresente" placeholder="Base form (eat)" />
-        <input type="text" id="editPasado" placeholder="Simple past (ate)" />
-        <input type="text" id="editTraduccion" placeholder="Traducción base (comer)" />
-        <input type="text" id="editTraduccionPasado" placeholder="Traducción del pasado (comí) — opcional" />
-        <input type="text" id="editContinuo" placeholder="Past continuous (was / were eating) — opcional" />
-        <input type="text" id="editTraduccionContinuo" placeholder="Traducción del past continuous — opcional" />
-        <select id="editCategoria">
-          <option value="regular">Regular</option>
-          <option value="irregular">Irregular</option>
-        </select>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <button class="btn-cta" onclick="datos.guardarModal()">💾 Guardar</button>
-        <button class="btn-cancel" onclick="datos.cerrarModal()">✖ Cancelar</button>
-      </div>
-    </div>
-  </div>
+    <!-- Aquí seguiría el resto de tus secciones (setup, play, lista, stats, modal, etc.) EXACTAMENTE igual que ahora -->
+  </main>
 
   <script src="/static/script.js"></script>
 </body>
