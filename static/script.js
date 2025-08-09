@@ -2,43 +2,6 @@
 const show = (id)=>{const m=document.getElementById(id); if(!m) return; m.classList.remove("hidden"); m.style.display="flex";}
 const hide = (id)=>{const m=document.getElementById(id); if(!m) return; m.classList.add("hidden"); m.style.display="none";}
 
-// Normalizadores
-function normalizeStr(s){
-  return (s||"").toString().trim().toLowerCase()
-    .replace(/\s+/g,' ')
-    .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
-}
-function uniqByNorm(arr){
-  const seen=new Set(); const out=[];
-  for(const x of arr){
-    const k=normalizeStr(x);
-    if(!k || seen.has(k)) continue;
-    seen.add(k); out.push(x);
-  }
-  return out;
-}
-function _shuffle(a){ return a.sort(()=>Math.random()-0.5); }
-
-// Expande variantes con “/”
-function expandSlashVariants(s){
-  const raw=(s||"").trim();
-  if(!raw) return [];
-  const lc=raw.toLowerCase();
-  const re=/\b([a-z]+)\s*\/\s*([a-z]+)\b/gi;
-  let match, variants=[raw];
-  while((match=re.exec(lc))){
-    const a=match[1]; const b=match[2];
-    const before=raw.slice(0, match.index).trim();
-    const after=raw.slice(match.index + match[0].length).trim();
-    const rest = after ? " " + after : "";
-    variants.push((before?before+" ":"") + a + rest);
-    variants.push((before?before+" ":"") + b + rest);
-    variants.push(a);
-    variants.push(b);
-  }
-  return uniqByNorm(variants);
-}
-
 // ===== UI =====
 const ui = {
   mostrar: (id) => {
@@ -75,11 +38,12 @@ const ui = {
   // Dashboard
   cargarHome: async () => {
     try{
-      const [verbsRes, statsRes] = await Promise.all([
+      const [verbsRes, statsRes, portadaRes] = await Promise.all([
         fetch("/obtener_verbos"),
-        fetch("/estadisticas")
+        fetch("/estadisticas"),
+        fetch("/portada_exists")
       ]);
-      const [verbs, stats] = [await verbsRes.json(), await statsRes.json()];
+      const [verbs, stats, portadaInfo] = [await verbsRes.json(), await statsRes.json(), await portadaRes.json()];
 
       document.getElementById("kpiVerbos").textContent   = verbs.length;
       document.getElementById("kpiSesiones").textContent = stats.length;
@@ -95,10 +59,30 @@ const ui = {
         .join("") || "<li>(Sin verbos)</li>";
       document.getElementById("homeVerbos").innerHTML = ultVerbos;
 
+      // Portada (imagen persistente)
+      ui._refrescarPortada(!!portadaInfo.exists);
     }catch(e){
       console.error(e);
       document.getElementById("homeUltimos").innerHTML = "<li>Error cargando datos</li>";
       document.getElementById("homeVerbos").innerHTML  = "<li>Error cargando datos</li>";
+      ui._refrescarPortada(false);
+    }
+  },
+
+  _refrescarPortada: (exists) => {
+    const img = document.getElementById("portadaImg");
+    const box = document.getElementById("portadaEmpty");
+    const btnQuitar = document.getElementById("btnQuitarPortada");
+    if (exists){
+      img.classList.remove("hidden");
+      img.src = "/portada?ts=" + Date.now(); // cache-busting
+      box.classList.add("hidden");
+      btnQuitar.disabled = false;
+    }else{
+      img.classList.add("hidden");
+      img.src = "";
+      box.classList.remove("hidden");
+      btnQuitar.disabled = true;
     }
   },
 
@@ -336,38 +320,7 @@ const datos = {
 
 // ===== PRÁCTICA =====
 
-// Cache de todos los verbos para armar distractores
-let ALL_VERBS = null;
-async function ensureVerbsCache(){
-  if (ALL_VERBS) return ALL_VERBS;
-  const res = await fetch("/obtener_verbos");
-  ALL_VERBS = await res.json();
-  return ALL_VERBS;
-}
-
-// Pools por tipo de pregunta
-function poolForType(type){
-  const verbs = ALL_VERBS || [];
-  switch(type){
-    case "past":        return verbs.map(v=>v.pasado).filter(Boolean);
-    case "base":        return verbs.map(v=>v.presente).filter(Boolean);
-    case "cont":        return verbs.map(v=>v.continuo).filter(Boolean);
-    case "es":          return verbs.map(v=>v.traduccion).filter(Boolean);
-    case "es_past":     return verbs.map(v=>v.traduccion_pasado || v.traduccion).filter(Boolean);
-    default:            return [];
-  }
-}
-
-function pickOptions(correct, pool, need=4){
-  const normCorrect = normalizeStr(correct);
-  const uniquePool = uniqByNorm(pool).filter(x=>normalizeStr(x)!==normCorrect);
-  _shuffle(uniquePool);
-  const picked = uniquePool.slice(0, Math.max(0, need-1));
-  const options = uniqByNorm([correct, ...picked]);
-  return _shuffle(options.length>=2 ? options.slice(0, need) : options);
-}
-
-// Banco WH
+// Banco WH (para armar opciones en traducción)
 const WH_BANK = [
   {en:"who", es:"quién"},
   {en:"what", es:"qué"},
@@ -380,6 +333,8 @@ const WH_BANK = [
   {en:"how many", es:"cuántos"},
   {en:"how much", es:"cuánto"}
 ];
+
+function _shuffle(a){ return a.sort(()=>Math.random()-0.5); }
 
 function whToMCQ(q){
   const m = q.pregunta.match(/Traduce al (español|inglés): '(.+?)'/i);
@@ -397,7 +352,9 @@ function whToMCQ(q){
     correct = item.en;
     pool = WH_BANK.filter(x=>x.es!==word).map(x=>x.en);
   }
-  return { pregunta: q.pregunta, opciones: pickOptions(correct, pool, 4), correcta: -1 };
+  const distractores = _shuffle(pool).slice(0,3);
+  const opciones = _shuffle([correct, ...distractores]);
+  return { pregunta: q.pregunta, opciones, correcta: opciones.indexOf(correct) };
 }
 
 const practica = {
@@ -433,7 +390,6 @@ const practica = {
 
   async iniciar(){
     hide("resumen");
-    await ensureVerbsCache();
     let arr = [];
     try{
       if (this.modo === "wh"){
@@ -450,35 +406,33 @@ const practica = {
           body: JSON.stringify({modo:this.modo,tipo:this.tipo,cantidad:this.ilimitado?"ilimitado":this.cantidad})});
         const base = await res.json();
 
-        // Convertimos TODAS a opción múltiple (4 opciones)
         arr = base.map(q=>{
+          const m = q.pregunta.match(/'(.+?)'/);
+          const quoted = m ? m[1] : null;
+
           const P = q.pregunta.toLowerCase();
-          let type=null; // "past" | "base" | "cont" | "es" | "es_past"
-          if (P.includes("¿cuál es el pasado de '")) type="past";
-          else if (P.includes("¿cuál es el presente de '")) type="base";
-          else if (P.includes("¿cuál es el pasado continuo de '")) type="cont";
-          else if (P.includes("¿cuál es el presente del continuo '")) type="base";
-          else if (P.includes("¿cómo se traduce '") && P.includes("al español")) type="es";
-          else if (P.includes("¿cómo se traduce el pasado '") && P.includes("al español")) type="es_past";
+          if (Array.isArray(q.opciones)) return q;
 
-          if (!type) return q;
-
-          const pool = poolForType(type);
-          const opciones = pickOptions(q.respuesta, pool, 4);
-          const correcta = opciones.findIndex(o=>normalizeStr(o)===normalizeStr(q.respuesta));
-          return { pregunta: q.pregunta, opciones, correcta: (correcta>=0?correcta:0), respuesta: q.respuesta };
+          if (P.includes("¿cuál es el pasado de ") && quoted){
+            const opciones=_shuffle([q.respuesta, quoted, "did", "made"]).slice(0,4);
+            return {pregunta:q.pregunta, opciones:_shuffle(opciones), correcta: _shuffle(opciones).indexOf(q.respuesta)};
+          }
+          if (P.includes("¿cuál es el presente de ") && quoted){
+            const opciones=_shuffle([q.respuesta, quoted, "be", "have"]).slice(0,4);
+            return {pregunta:q.pregunta, opciones:_shuffle(opciones), correcta: _shuffle(opciones).indexOf(q.respuesta)};
+          }
+          if (P.includes("¿cuál es el pasado continuo de ") && quoted){
+            const opciones=_shuffle([q.respuesta, quoted, "was / were going", "was / were doing"]).slice(0,4);
+            return {pregunta:q.pregunta, opciones:_shuffle(opciones), correcta: _shuffle(opciones).indexOf(q.respuesta)};
+          }
+          if (P.includes("¿cuál es el presente del continuo ") && quoted){
+            const opciones=_shuffle([q.respuesta, quoted, "be", "go"]).slice(0,4);
+            return {pregunta:q.pregunta, opciones:_shuffle(opciones), correcta: _shuffle(opciones).indexOf(q.respuesta)};
+          }
+          return q;
         });
       }
     }catch(e){ alert("No se pudieron cargar las preguntas."); return; }
-
-    // Ajustar "correcta" si venía -1
-    arr = arr.map(q=>{
-      if (Array.isArray(q.opciones) && (q.correcta==null || q.correcta<0) && q.respuesta){
-        const i = q.opciones.findIndex(o=>normalizeStr(o)===normalizeStr(q.respuesta));
-        if (i>=0) q.correcta=i;
-      }
-      return q;
-    });
 
     if (!Array.isArray(arr) || arr.length===0){
       alert("No hay preguntas para ese modo/filtro. Agrega verbos o cambia el filtro.");
@@ -509,7 +463,7 @@ const practica = {
     const q = this.preguntas[this.idx % this.preguntas.length];
     document.getElementById("pregunta").textContent=q.pregunta;
 
-    if (Array.isArray(q.opciones)){ // MCQ
+    if (Array.isArray(q.opciones)){
       boxLibre.classList.add("hidden"); boxOpc.classList.remove("hidden");
       boxOpc.innerHTML="";
       q.opciones.forEach((op,i)=>{
@@ -530,31 +484,13 @@ const practica = {
       `${Math.min(this.idx, this.preguntas.length)}/${this.ilimitado ? "∞" : this.preguntas.length}`;
   },
 
-  // Comparación libre con variantes de slash
-  _isCorrectFree(respRaw, expectedRaw){
-    const norm = s => normalizeStr(s);
-    const resp = norm(respRaw);
-    const expected = norm(expectedRaw);
-    if (!resp) return false;
-    if (resp === expected) return true;
-
-    const variants = expandSlashVariants(expectedRaw);
-    for(const v of variants){
-      if (norm(v) === resp) return true;
-    }
-    return false;
-  },
-
   verificar(){
+    const norm = s => (s??"").toString().trim().toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     const q=this.preguntas[this.idx % this.preguntas.length];
-    const resp=(document.getElementById("respuesta").value||"").trim();
-
-    let ok=false;
-    if (Array.isArray(q.respuesta)){
-      ok = q.respuesta.some(a=>this._isCorrectFree(resp,a));
-    }else{
-      ok = this._isCorrectFree(resp, q.respuesta);
-    }
+    const resp=norm(document.getElementById("respuesta").value||"");
+    const exp=q.respuesta; let ok=false;
+    if (Array.isArray(exp)) ok=exp.some(a=>norm(a)===resp); else ok=(norm(exp)===resp);
     this._post(ok, q);
   },
   verificarOpcion(iSel){
@@ -641,6 +577,26 @@ document.addEventListener("keydown",(e)=>{
   apply(initialDark);
   btn.onclick=()=>apply(!document.body.classList.contains("dark"));
 })();
+
+// Acciones portada (subir/quitar)
+window._uploadPortada = async (file) => {
+  if(!file) return;
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/upload_portada", { method: "POST", body: fd });
+  const data = await res.json();
+  if (!data.ok){ alert(data.msg || "No se pudo subir la imagen"); return; }
+  ui._refrescarPortada(true);
+  document.getElementById("inputPortada").value="";
+};
+
+window._deletePortada = async () => {
+  if (!confirm("¿Quitar la foto de portada?")) return;
+  const res = await fetch("/delete_portada", { method: "DELETE" });
+  const data = await res.json();
+  if (!data.ok){ alert("No se pudo quitar"); return; }
+  ui._refrescarPortada(false);
+};
 
 // Inicio
 ui.mostrar("menu");
