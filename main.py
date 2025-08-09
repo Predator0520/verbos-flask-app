@@ -1,97 +1,70 @@
-from flask import Flask, jsonify, request, render_template, Response, send_file, make_response
-import json
-import os
-import random
+from flask import Flask, jsonify, request, render_template, Response
+import os, json, random
 from datetime import datetime
-from io import StringIO, BytesIO
+from io import StringIO
 from typing import List, Dict
+
+# --- DB ---
+from sqlalchemy import create_engine, text
 
 app = Flask(__name__)
 
-# =======================
-#   PERSISTENCIA & PATHS
-# =======================
-DEFAULT_DATA_DIR = "/var/data"  # Render mount
-DATA_DIR = os.environ.get("DATA_DIR", DEFAULT_DATA_DIR)
+# ==========
+#  DATABASE
+# ==========
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+if not DATABASE_URL:
+    raise RuntimeError("Falta la variable de entorno DATABASE_URL (postgresql://...)")
 
-def _writable(path: str) -> bool:
-    try:
-        os.makedirs(path, exist_ok=True)
-        test = os.path.join(path, ".write_test")
-        with open(test, "w", encoding="utf-8") as f:
-            f.write("ok")
-            f.flush()
-            os.fsync(f.fileno())
-        os.remove(test)
-        return True
-    except Exception:
-        return False
+# Neon/PG
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+)
 
-if not _writable(DATA_DIR):
-    DATA_DIR = os.getcwd()
+def init_db():
+    """Crea tablas si no existen (idempotente)."""
+    ddl = """
+    CREATE TABLE IF NOT EXISTS verbos (
+        id SERIAL PRIMARY KEY,
+        presente TEXT NOT NULL,
+        pasado TEXT NOT NULL,
+        traduccion TEXT NOT NULL,
+        traduccion_pasado TEXT NOT NULL,
+        continuo TEXT NOT NULL,
+        traduccion_continuo TEXT NOT NULL,
+        categoria TEXT NOT NULL CHECK (categoria IN ('regular','irregular'))
+    );
 
-VERBOS_FILE = os.path.join(DATA_DIR, "verbos.json")
-STATS_FILE  = os.path.join(DATA_DIR, "stats.json")
+    CREATE TABLE IF NOT EXISTS stats (
+        id SERIAL PRIMARY KEY,
+        usuario TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        limitado BOOLEAN NOT NULL,
+        cantidad TEXT NOT NULL,
+        correctas INT NOT NULL,
+        incorrectas INT NOT NULL,
+        porcentaje NUMERIC(6,2) NOT NULL,
+        streak_max INT NOT NULL,
+        duracion_segundos INT NOT NULL,
+        fecha TIMESTAMP NOT NULL DEFAULT NOW()
+    );
 
-# Archivo de portada (permitimos varias extensiones)
-ALLOWED_EXTS = ("png","jpg","jpeg","webp","gif")
-def _portada_candidates():
-    return [os.path.join(DATA_DIR, f"portada.{ext}") for ext in ALLOWED_EXTS]
+    CREATE TABLE IF NOT EXISTS portada (
+        id INTEGER PRIMARY KEY,
+        data_url TEXT,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """
+    with engine.begin() as conn:
+        for stmt in ddl.split(";"):
+            s = stmt.strip()
+            if s:
+                conn.execute(text(s))
 
-def _portada_current_path():
-    for p in _portada_candidates():
-        if os.path.exists(p):
-            return p
-    return None
-
-# =======================
-#     JSON HELPERS
-# =======================
-def _read_json(path, default):
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return default
-    return default
-
-def _write_json_atomic(path: str, data):
-    """Escritura atómica + fsync"""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
-
-def _backup_rotate(path: str, max_keep: int = 7):
-    """Copia fechada y rotación para verbos"""
-    if not os.path.exists(path):
-        return
-    base_dir = os.path.dirname(path)
-    ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-    backup_name = os.path.join(base_dir, f"backup-verbos-{ts}.json")
-    try:
-        with open(path, "r", encoding="utf-8") as src, open(backup_name, "w", encoding="utf-8") as dst:
-            dst.write(src.read())
-            dst.flush()
-            os.fsync(dst.fileno())
-    except Exception:
-        return
-    files = sorted([f for f in os.listdir(base_dir) if f.startswith("backup-verbos-") and f.endswith(".json")])
-    excess = len(files) - max_keep
-    for i in range(excess):
-        try:
-            os.remove(os.path.join(base_dir, files[i]))
-        except Exception:
-            pass
-
-def _write_json_safe(path: str, data, do_backup=False):
-    if do_backup:
-        _backup_rotate(path)
-    _write_json_atomic(path, data)
+init_db()
 
 # =======================
 #   LENGUAJE & NORMALIZ.
@@ -99,19 +72,17 @@ def _write_json_safe(path: str, data, do_backup=False):
 def _is_vowel(c): return c.lower() in "aeiou"
 
 def _gerund(base: str) -> str:
-    """Gerundio simple -ing."""
     w = (base or "").strip().lower()
     if not w:
         return ""
     if w == "be":
         return "being"
     if w.endswith("ie"):
-        return w[:-2] + "ying"   # die -> dying
+        return w[:-2] + "ying"
     if w.endswith("e") and len(w) > 2 and w[-2] not in "aeiou":
         if w.endswith("ee"):
-            return w + "ing"     # see -> seeing
-        return w[:-1] + "ing"    # make -> making
-    # CVC: run->running, stop->stopping
+            return w + "ing"
+        return w[:-1] + "ing"
     if len(w) >= 3 and (not _is_vowel(w[-1])) and _is_vowel(w[-2]) and (not _is_vowel(w[-3])):
         if w[-1] not in "wxy":
             return w + w[-1] + "ing"
@@ -154,7 +125,6 @@ def _normalize_verb_input(v: Dict) -> Dict:
     return out
 
 def _normalize_verb_strict_for_add(data: Dict) -> Dict:
-    # Requisitos mínimos
     req_min = ["presente", "pasado", "traduccion", "categoria"]
     if not all(k in data and str(data[k]).strip() for k in req_min):
         raise ValueError("Faltan campos obligatorios (presente, pasado, traducción y categoría).")
@@ -162,48 +132,65 @@ def _normalize_verb_strict_for_add(data: Dict) -> Dict:
         data["traduccion_pasado"] = data.get("traduccion", "")
     return _normalize_verb_input(data)
 
-def _migrate_if_missing():
-    # Si no existe en /var/data, seed desde repo (solo una vez)
-    if not os.path.exists(VERBOS_FILE):
-        seed = _read_json("verbos.json", [])
-        seed_norm = [_normalize_verb_input(v) for v in seed]
-        _write_json_safe(VERBOS_FILE, seed_norm, do_backup=False)
-    if not os.path.exists(STATS_FILE):
-        seed = _read_json("stats.json", [])
-        _write_json_safe(STATS_FILE, seed, do_backup=False)
-
-_migrate_if_missing()
-
-# ================
-#  ACCESS LAYERS
-# ================
-def load_verbs() -> List[Dict]:
-    arr = _read_json(VERBOS_FILE, [])
-    return [_normalize_verb_input(v) for v in arr]
-
-def save_verbs(verbs: List[Dict]):
-    norm = [_normalize_verb_input(v) for v in verbs]
-    _write_json_safe(VERBOS_FILE, norm, do_backup=True)
-
-def load_stats() -> List[Dict]:
-    return _read_json(STATS_FILE, [])
-
-def save_stats(stats: List[Dict]):
-    _write_json_safe(STATS_FILE, stats, do_backup=False)
-
-# ============
+# ==========
 #   VISTAS
-# ============
+# ==========
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# ============
-#  VERBOS API
-# ============
+# ================
+#   PORTADA API
+# ================
+@app.route("/portada", methods=["GET"])
+def portada_get():
+    with engine.connect() as conn:
+        r = conn.execute(text("SELECT data_url FROM portada WHERE id=1")).fetchone()
+        return jsonify({"ok": True, "data_url": r[0] if r else ""})
+
+@app.route("/portada", methods=["POST"])
+def portada_set():
+    data = request.json or {}
+    data_url = (data.get("data_url") or "").strip()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO portada (id, data_url, updated_at)
+            VALUES (1, :d, NOW())
+            ON CONFLICT (id) DO UPDATE SET data_url = EXCLUDED.data_url, updated_at = NOW()
+        """), {"d": data_url})
+    return jsonify({"ok": True})
+
+@app.route("/portada/delete", methods=["POST"])
+def portada_del():
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM portada WHERE id=1"))
+    return jsonify({"ok": True})
+
+# =================
+#   VERBOS (CRUD)
+# =================
+def _load_verbs() -> List[Dict]:
+    with engine.connect() as conn:
+        cur = conn.execute(text("""
+            SELECT id, presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria
+            FROM verbos ORDER BY presente ASC
+        """))
+        rows = [dict(r) for r in cur.mappings()]
+    # normalizamos para asegurar campos continuo/traduccion_continuo
+    return [_autofill_continuous(dict(v)) for v in rows]
+
+def _get_id_by_index(idx: int) -> int:
+    with engine.connect() as conn:
+        r = conn.execute(text("""
+            SELECT id FROM verbos ORDER BY presente ASC LIMIT 1 OFFSET :off
+        """), {"off": idx}).fetchone()
+        if not r:
+            return -1
+        return int(r[0])
+
 @app.route("/obtener_verbos", methods=["GET"])
 def obtener_verbos():
-    return jsonify(load_verbs())
+    return jsonify(_load_verbs())
 
 @app.route("/agregar_verbo", methods=["POST"])
 def agregar_verbo():
@@ -213,12 +200,18 @@ def agregar_verbo():
     except ValueError as e:
         return jsonify({"ok": False, "msg": str(e)}), 400
 
-    verbos = load_verbs()
-    if any((v.get("presente","").lower().strip() == nuevo["presente"]) for v in verbos):
+    # duplicado por 'presente'
+    with engine.connect() as conn:
+        r = conn.execute(text("SELECT 1 FROM verbos WHERE LOWER(TRIM(presente)) = :p LIMIT 1"),
+                         {"p": nuevo["presente"]}).fetchone()
+    if r:
         return jsonify({"ok": False, "msg": "El verbo ya existe"}), 400
 
-    verbos.append(nuevo)
-    save_verbs(verbos)
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO verbos (presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria)
+            VALUES (:presente, :pasado, :traduccion, :traduccion_pasado, :continuo, :traduccion_continuo, :categoria)
+        """), nuevo)
     return jsonify({"ok": True, "msg": "✅ Verbo agregado", "verbo": nuevo})
 
 @app.route("/editar_verbo", methods=["POST"])
@@ -228,17 +221,23 @@ def editar_verbo():
         return jsonify({"ok": False, "msg": "Datos inválidos"}), 400
 
     idx = int(data["index"])
-    verbos = load_verbs()
-    if idx < 0 or idx >= len(verbos):
-        return jsonify({"ok": False, "msg": "Índice inválido"}), 400
-
     try:
         edited = _normalize_verb_strict_for_add(data["verbo"])
     except ValueError as e:
         return jsonify({"ok": False, "msg": str(e)}), 400
 
-    verbos[idx] = edited
-    save_verbs(verbos)
+    vid = _get_id_by_index(idx)
+    if vid < 0:
+        return jsonify({"ok": False, "msg": "Índice inválido"}), 400
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE verbos SET
+                presente=:presente, pasado=:pasado, traduccion=:traduccion,
+                traduccion_pasado=:traduccion_pasado, continuo=:continuo,
+                traduccion_continuo=:traduccion_continuo, categoria=:categoria
+            WHERE id=:id
+        """), {**edited, "id": vid})
     return jsonify({"ok": True, "msg": "✏️ Verbo editado", "verbo": edited})
 
 @app.route("/eliminar_verbo", methods=["POST"])
@@ -246,14 +245,12 @@ def eliminar_verbo():
     data = request.json or {}
     if "index" not in data:
         return jsonify({"ok": False, "msg": "Datos inválidos"}), 400
-
     idx = int(data["index"])
-    verbos = load_verbs()
-    if idx < 0 or idx >= len(verbos):
+    vid = _get_id_by_index(idx)
+    if vid < 0:
         return jsonify({"ok": False, "msg": "Índice inválido"}), 400
-
-    del verbos[idx]
-    save_verbs(verbos)
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM verbos WHERE id=:id"), {"id": vid})
     return jsonify({"ok": True, "msg": "🗑️ Verbo eliminado"})
 
 # ==========================
@@ -261,7 +258,10 @@ def eliminar_verbo():
 # ==========================
 @app.route("/exportar_verbos", methods=["GET"])
 def exportar_verbos():
-    data = load_verbs()
+    data = _load_verbs()
+    # quitamos 'id'
+    for v in data:
+        v.pop("id", None)
     return Response(
         json.dumps(data, ensure_ascii=False, indent=2),
         mimetype="application/json",
@@ -270,7 +270,6 @@ def exportar_verbos():
 
 @app.route("/importar_verbos", methods=["POST"])
 def importar_verbos():
-    payload = None
     if request.files.get("file"):
         try:
             payload = json.load(request.files["file"])
@@ -282,23 +281,35 @@ def importar_verbos():
     if not isinstance(payload, list):
         return jsonify({"ok": False, "msg": "Se espera una lista JSON de verbos"}), 400
 
-    actuales = load_verbs()
-    by_base = { v["presente"]: v for v in actuales }
-
     added, updated = 0, 0
-    for item in payload:
-        norm = _normalize_verb_input(item)
-        key = norm["presente"]
-        if key in by_base:
-            by_base[key] = norm
-            updated += 1
-        else:
-            by_base[key] = norm
-            added += 1
+    with engine.begin() as conn:
+        # Cargamos llaves existentes
+        cur = conn.execute(text("SELECT id, presente FROM verbos"))
+        existing = {r.presente: r.id for r in cur.mappings()}
 
-    merged = list(by_base.values())
-    save_verbs(merged)
-    return jsonify({"ok": True, "msg": f"✅ Importados: {added} nuevos, {updated} actualizados", "total": len(merged)})
+        for item in payload:
+            norm = _normalize_verb_input(item)
+            key = norm["presente"]
+            if key in existing:
+                conn.execute(text("""
+                    UPDATE verbos SET
+                      pasado=:pasado, traduccion=:traduccion, traduccion_pasado=:traduccion_pasado,
+                      continuo=:continuo, traduccion_continuo=:traduccion_continuo, categoria=:categoria
+                    WHERE id=:id
+                """), {**norm, "id": existing[key]})
+                updated += 1
+            else:
+                conn.execute(text("""
+                    INSERT INTO verbos (presente, pasado, traduccion, traduccion_pasado, continuo, traduccion_continuo, categoria)
+                    VALUES (:presente, :pasado, :traduccion, :traduccion_pasado, :continuo, :traduccion_continuo, :categoria)
+                """), norm)
+                added += 1
+
+    # total
+    with engine.connect() as conn:
+        total = conn.execute(text("SELECT COUNT(*) FROM verbos")).scalar_one()
+
+    return jsonify({"ok": True, "msg": f"✅ Importados: {added} nuevos, {updated} actualizados", "total": int(total)})
 
 # ===================
 #   PREGUNTAS VERBOS
@@ -310,7 +321,7 @@ def preguntas():
     tipo = data.get("tipo", "todos")
     cantidad = data.get("cantidad", "ilimitado")
 
-    verbos = load_verbs()
+    verbos = _load_verbs()
     if modo in ("simple", "continuous") and tipo != "todos":
         verbos = [v for v in verbos if v.get("categoria") == tipo]
     if not verbos:
@@ -452,121 +463,77 @@ def guardar_resultado():
         "usuario": (data.get("usuario") or "invitado").strip(),
         "tipo": data.get("tipo", "simple"),
         "limitado": bool(data.get("limitado", False)),
-        "cantidad": data.get("cantidad", "ilimitado"),
+        "cantidad": str(data.get("cantidad", "ilimitado")),
         "correctas": int(data.get("correctas", 0)),
         "incorrectas": int(data.get("incorrectas", 0)),
         "porcentaje": porcentaje,
         "streak_max": int(data.get("streak_max", 0)),
         "duracion_segundos": int(data.get("duracion_segundos", 0)),
-        "fecha": datetime.utcnow().isoformat() + "Z"
     }
-    stats = load_stats()
-    stats.append(registro)
-    save_stats(stats)
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO stats (usuario, tipo, limitado, cantidad, correctas, incorrectas, porcentaje, streak_max, duracion_segundos, fecha)
+            VALUES (:usuario, :tipo, :limitado, :cantidad, :correctas, :incorrectas, :porcentaje, :streak_max, :duracion_segundos, NOW())
+        """), registro)
     return jsonify({"ok": True, "msg": "📊 Resultado guardado", "registro": registro})
 
 @app.route("/estadisticas", methods=["GET"])
 def estadisticas():
     usuario = (request.args.get("usuario") or "").strip()
-    stats = load_stats()
-    if usuario:
-        stats = [s for s in stats if s.get("usuario","").lower() == usuario.lower()]
-    stats.sort(key=lambda x: x.get("fecha",""), reverse=True)
-    return jsonify(stats)
+    with engine.connect() as conn:
+        if usuario:
+            cur = conn.execute(text("""
+                SELECT * FROM stats WHERE LOWER(usuario)=LOWER(:u) ORDER BY fecha DESC
+            """), {"u": usuario})
+        else:
+            cur = conn.execute(text("SELECT * FROM stats ORDER BY fecha DESC"))
+        rows = [dict(r) for r in cur.mappings()]
+    # convertir fecha a ISO (string) para el front
+    for r in rows:
+        if isinstance(r.get("fecha"), datetime):
+            r["fecha"] = r["fecha"].isoformat() + "Z"
+    return jsonify(rows)
 
 @app.route("/estadisticas_csv", methods=["GET"])
 def estadisticas_csv():
-    stats = load_stats()
+    with engine.connect() as conn:
+        cur = conn.execute(text("""
+            SELECT fecha, usuario, tipo, limitado, cantidad, correctas, incorrectas, porcentaje, streak_max, duracion_segundos
+            FROM stats ORDER BY fecha DESC
+        """))
+        rows = list(cur)
+
     out = StringIO()
     headers = ["fecha","usuario","tipo","limitado","cantidad","correctas","incorrectas","porcentaje","streak_max","duracion_segundos"]
     out.write(",".join(headers) + "\n")
-    for s in stats:
+    for s in rows:
         row = [
-            s.get("fecha",""),
-            s.get("usuario",""),
-            s.get("tipo",""),
-            "1" if s.get("limitado") else "0",
-            str(s.get("cantidad","")),
-            str(s.get("correctas",0)),
-            str(s.get("incorrectas",0)),
-            str(s.get("porcentaje",0)),
-            str(s.get("streak_max",0)),
-            str(s.get("duracion_segundos",0)),
+            (s[0].isoformat() + "Z") if isinstance(s[0], datetime) else str(s[0]),
+            str(s[1]), str(s[2]), "1" if s[3] else "0", str(s[4]),
+            str(s[5]), str(s[6]), str(s[7]), str(s[8]), str(s[9]),
         ]
         out.write(",".join(row) + "\n")
-    return Response(out.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment; filename=estadisticas.csv"})
+
+    return Response(out.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition":"attachment; filename=estadisticas.csv"})
 
 @app.route("/usuarios", methods=["GET"])
 def usuarios():
-    stats = load_stats()
-    names = sorted({
-        s.get("usuario","").strip() for s in stats
-        if s.get("usuario","").strip() and s.get("usuario","").lower() != "invitado"
-    })
+    with engine.connect() as conn:
+        cur = conn.execute(text("""
+            SELECT DISTINCT usuario FROM stats
+            WHERE TRIM(usuario) <> '' AND LOWER(usuario) <> 'invitado'
+            ORDER BY usuario
+        """))
+        names = [r[0] for r in cur]
     return jsonify(names)
-
-# ======================
-#     PORTADA (imagen)
-# ======================
-# 1x1 PNG transparente por defecto
-_TRANSPARENT_PNG = bytes.fromhex(
-    "89504E470D0A1A0A0000000D4948445200000001000000010806000000"
-    "1F15C4890000000A49444154789C6360000002000100"
-    "05FE02FEA7C65D0000000049454E44AE426082"
-)
-
-@app.route("/portada", methods=["GET"])
-def portada_get():
-    path = _portada_current_path()
-    if path and os.path.exists(path):
-        resp = make_response(send_file(path, conditional=True))
-    else:
-        resp = make_response(send_file(BytesIO(_TRANSPARENT_PNG), mimetype="image/png"))
-    # Evitar caché para que se vea la última
-    resp.headers["Cache-Control"] = "no-store, max-age=0"
-    return resp
-
-@app.route("/portada", methods=["POST"])
-def portada_post():
-    f = request.files.get("file")
-    if not f or not f.filename:
-        return jsonify({"ok": False, "msg": "No se recibió archivo"}), 400
-
-    # validar extensión
-    filename = f.filename.lower()
-    ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
-    if ext not in ALLOWED_EXTS:
-        return jsonify({"ok": False, "msg": "Formato no permitido (png, jpg, jpeg, webp, gif)"}), 400
-
-    # eliminar anteriores
-    for cand in _portada_candidates():
-        try:
-            if os.path.exists(cand):
-                os.remove(cand)
-        except Exception:
-            pass
-
-    save_path = os.path.join(DATA_DIR, f"portada.{ext}")
-    os.makedirs(DATA_DIR, exist_ok=True)
-    f.save(save_path)
-
-    return jsonify({"ok": True, "msg": "✅ Portada actualizada"})
-
-@app.route("/portada", methods=["DELETE"])
-def portada_delete():
-    ok = False
-    for cand in _portada_candidates():
-        if os.path.exists(cand):
-            try:
-                os.remove(cand)
-                ok = True
-            except Exception:
-                pass
-    return jsonify({"ok": ok, "msg": "🗑️ Portada eliminada" if ok else "No había portada"})
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"ok": True, "data_dir": DATA_DIR})
+    # prueba simple contra la DB
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    return jsonify({"ok": True})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
