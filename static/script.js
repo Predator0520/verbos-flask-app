@@ -38,12 +38,11 @@ const ui = {
   // Dashboard
   cargarHome: async () => {
     try{
-      const [verbsRes, statsRes, portadaRes] = await Promise.all([
+      const [verbsRes, statsRes] = await Promise.all([
         fetch("/obtener_verbos"),
-        fetch("/estadisticas"),
-        fetch("/portada_exists")
+        fetch("/estadisticas")
       ]);
-      const [verbs, stats, portadaInfo] = [await verbsRes.json(), await statsRes.json(), await portadaRes.json()];
+      const [verbs, stats] = [await verbsRes.json(), await statsRes.json()];
 
       document.getElementById("kpiVerbos").textContent   = verbs.length;
       document.getElementById("kpiSesiones").textContent = stats.length;
@@ -59,30 +58,10 @@ const ui = {
         .join("") || "<li>(Sin verbos)</li>";
       document.getElementById("homeVerbos").innerHTML = ultVerbos;
 
-      // Portada (imagen persistente)
-      ui._refrescarPortada(!!portadaInfo.exists);
     }catch(e){
       console.error(e);
       document.getElementById("homeUltimos").innerHTML = "<li>Error cargando datos</li>";
       document.getElementById("homeVerbos").innerHTML  = "<li>Error cargando datos</li>";
-      ui._refrescarPortada(false);
-    }
-  },
-
-  _refrescarPortada: (exists) => {
-    const img = document.getElementById("portadaImg");
-    const box = document.getElementById("portadaEmpty");
-    const btnQuitar = document.getElementById("btnQuitarPortada");
-    if (exists){
-      img.classList.remove("hidden");
-      img.src = "/portada?ts=" + Date.now(); // cache-busting
-      box.classList.add("hidden");
-      btnQuitar.disabled = false;
-    }else{
-      img.classList.add("hidden");
-      img.src = "";
-      box.classList.remove("hidden");
-      btnQuitar.disabled = true;
     }
   },
 
@@ -320,7 +299,6 @@ const datos = {
 
 // ===== PRÁCTICA =====
 
-// Banco WH (para armar opciones en traducción)
 const WH_BANK = [
   {en:"who", es:"quién"},
   {en:"what", es:"qué"},
@@ -358,8 +336,8 @@ function whToMCQ(q){
 }
 
 const practica = {
-  modo:"simple",     // simple | continuous | wh
-  whTipo:"traduccion", // traduccion | oraciones
+  modo:"simple",
+  whTipo:"traduccion",
   usuario:"invitado",
   tipo:"todos",
   cantidad:10,
@@ -411,23 +389,21 @@ const practica = {
           const quoted = m ? m[1] : null;
 
           const P = q.pregunta.toLowerCase();
-          if (Array.isArray(q.opciones)) return q;
-
           if (P.includes("¿cuál es el pasado de ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted, "did", "made"]).slice(0,4);
-            return {pregunta:q.pregunta, opciones:_shuffle(opciones), correcta: _shuffle(opciones).indexOf(q.respuesta)};
+            const opciones=_shuffle([q.respuesta, quoted]);
+            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
           }
           if (P.includes("¿cuál es el presente de ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted, "be", "have"]).slice(0,4);
-            return {pregunta:q.pregunta, opciones:_shuffle(opciones), correcta: _shuffle(opciones).indexOf(q.respuesta)};
+            const opciones=_shuffle([q.respuesta, quoted]);
+            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
           }
           if (P.includes("¿cuál es el pasado continuo de ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted, "was / were going", "was / were doing"]).slice(0,4);
-            return {pregunta:q.pregunta, opciones:_shuffle(opciones), correcta: _shuffle(opciones).indexOf(q.respuesta)};
+            const opciones=_shuffle([q.respuesta, quoted]);
+            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
           }
           if (P.includes("¿cuál es el presente del continuo ") && quoted){
-            const opciones=_shuffle([q.respuesta, quoted, "be", "go"]).slice(0,4);
-            return {pregunta:q.pregunta, opciones:_shuffle(opciones), correcta: _shuffle(opciones).indexOf(q.respuesta)};
+            const opciones=_shuffle([q.respuesta, quoted]);
+            return {pregunta:q.pregunta, opciones, correcta: opciones.indexOf(q.respuesta)};
           }
           return q;
         });
@@ -578,25 +554,72 @@ document.addEventListener("keydown",(e)=>{
   btn.onclick=()=>apply(!document.body.classList.contains("dark"));
 })();
 
-// Acciones portada (subir/quitar)
-window._uploadPortada = async (file) => {
-  if(!file) return;
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/upload_portada", { method: "POST", body: fd });
-  const data = await res.json();
-  if (!data.ok){ alert(data.msg || "No se pudo subir la imagen"); return; }
-  ui._refrescarPortada(true);
-  document.getElementById("inputPortada").value="";
-};
+/* ===== Portada (upload/delete) ===== */
+async function uploadPortada(file){
+  const msg = document.getElementById("portadaMsg");
+  msg.textContent = "Subiendo...";
+  try{
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/upload_portada", { method:"POST", body: fd });
+    let data;
+    try { data = await res.json(); } catch { data = { ok:false, msg:"Respuesta inválida del servidor" }; }
+    if(!res.ok || !data.ok){
+      msg.textContent = data && data.msg ? data.msg : "No se pudo subir la imagen";
+      alert(msg.textContent);
+      return;
+    }
+    const img = document.getElementById("portada-img");
+    img.src = "/portada?ts=" + Date.now(); // cache-busting
+    msg.textContent = "✔ Imagen cargada";
+  }catch(e){
+    console.error(e);
+    msg.textContent = "Error subiendo imagen";
+    alert("Error subiendo imagen");
+  } finally {
+    setTimeout(()=>{ msg.textContent=""; }, 2500);
+  }
+}
+async function deletePortada(){
+  const msg = document.getElementById("portadaMsg");
+  try{
+    const ok = confirm("¿Quitar imagen de portada?");
+    if (!ok) return;
+    msg.textContent = "Eliminando...";
+    const res = await fetch("/delete_portada", { method:"DELETE" });
+    await res.json();
+    const img = document.getElementById("portada-img");
+    img.src = "/portada?ts=" + Date.now(); // placeholder
+    msg.textContent = "✔ Imagen eliminada";
+  }catch(e){
+    console.error(e);
+    msg.textContent = "Error al quitar la imagen";
+    alert("Error al quitar la imagen");
+  } finally {
+    setTimeout(()=>{ msg.textContent=""; }, 2500);
+  }
+}
 
-window._deletePortada = async () => {
-  if (!confirm("¿Quitar la foto de portada?")) return;
-  const res = await fetch("/delete_portada", { method: "DELETE" });
-  const data = await res.json();
-  if (!data.ok){ alert("No se pudo quitar"); return; }
-  ui._refrescarPortada(false);
-};
+/* Listeners robustos para que siempre abra el file picker */
+(function portadaInit(){
+  const input = document.getElementById("filePortada");
+  const btnUp = document.getElementById("btnSubirPortada");
+  const btnDel= document.getElementById("btnQuitarPortada");
+  const img   = document.getElementById("portada-img");
+
+  if (input){
+    input.addEventListener("change", (e)=>{
+      const f = e.target.files && e.target.files[0];
+      if (f) uploadPortada(f);
+      input.value = "";
+    });
+  }
+  const openPicker = ()=> input && input.click();
+
+  if (btnUp)  btnUp.addEventListener("click", openPicker);
+  if (img)    img.addEventListener("click", openPicker);
+  if (btnDel) btnDel.addEventListener("click", deletePortada);
+})();
 
 // Inicio
 ui.mostrar("menu");
