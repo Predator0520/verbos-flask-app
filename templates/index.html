@@ -31,22 +31,22 @@
   <main>
     <!-- Dashboard Home -->
     <section id="menu" class="panel">
-      <h2>📷 Portada</h2>
-      <div class="portada-wrap">
-        <div class="portada-box">
-          <img id="portadaImg" class="hidden" alt="Portada">
-          <div id="portadaEmpty" class="portada-empty">Sin imagen</div>
+      <!-- Portada -->
+      <h2 style="margin-top:0">📷 Portada</h2>
+      <div class="panel-sub" style="margin-bottom:14px">
+        <div style="padding:12px; border:1px dashed var(--border); border-radius:12px; background:#fff">
+          <img src="/portada" alt="Sin imagen" id="portada-img">
         </div>
-        <div class="row" style="margin-top:8px">
-          <label class="btn" style="cursor:pointer">
-            Subir imagen
-            <input type="file" id="inputPortada" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="_uploadPortada(this.files[0])">
-          </label>
-          <button id="btnQuitarPortada" class="btn-cancel" onclick="_deletePortada()" disabled>Quitar imagen</button>
+        <div class="row" style="margin-top:10px; gap:10px">
+          <input type="file" id="filePortada" accept="image/*" style="display:none"
+                 onchange="if(this.files&&this.files[0]){ uploadPortada(this.files[0]); this.value=''; }">
+          <button class="btn" onclick="document.getElementById('filePortada').click()">Subir imagen</button>
+          <button class="btn-cancel" onclick="deletePortada()">Quitar imagen</button>
         </div>
       </div>
 
-      <h2 style="margin-top:18px">📊 Resumen</h2>
+      <!-- Resumen -->
+      <h2>📊 Resumen</h2>
 
       <div class="kpis">
         <div class="kpi">
