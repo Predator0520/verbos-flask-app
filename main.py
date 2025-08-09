@@ -1,8 +1,7 @@
-from flask import Flask, jsonify, request, render_template, Response
+from flask import Flask, jsonify, request, render_template, Response, send_file
 import json
 import os
 import random
-import re
 from datetime import datetime
 from io import StringIO
 from typing import List, Dict
@@ -33,6 +32,48 @@ if not _writable(DATA_DIR):
 
 VERBOS_FILE = os.path.join(DATA_DIR, "verbos.json")
 STATS_FILE  = os.path.join(DATA_DIR, "stats.json")
+
+# Archivo(s) de portada (imagen persistente)
+PORTADA_BASE = os.path.join(DATA_DIR, "portada")  # usaremos portada.png/.jpg/.jpeg/.webp
+PORTADA_EXTS = [".png", ".jpg", ".jpeg", ".webp"]
+
+
+def _portada_find_path():
+    for ext in PORTADA_EXTS:
+        p = PORTADA_BASE + ext
+        if os.path.exists(p):
+            return p
+    return None
+
+def _portada_save(file_storage):
+    # Validar extensión por nombre y content-type
+    filename = (file_storage.filename or "").lower()
+    ext = None
+    for e in PORTADA_EXTS:
+        if filename.endswith(e):
+            ext = e
+            break
+    if not ext:
+        # fallback: intentar por mimetype
+        ct = (file_storage.mimetype or "").lower()
+        if "png" in ct: ext = ".png"
+        elif "jpeg" in ct or "jpg" in ct: ext = ".jpg"
+        elif "webp" in ct: ext = ".webp"
+    if not ext:
+        raise ValueError("Formato no soportado. Usa PNG, JPG/JPEG o WEBP.")
+
+    # Borrar versiones anteriores
+    for e in PORTADA_EXTS:
+        old = PORTADA_BASE + e
+        if os.path.exists(old):
+            try: os.remove(old)
+            except Exception: pass
+
+    # Guardar
+    out_path = PORTADA_BASE + ext
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    file_storage.save(out_path)
+    return out_path
 
 # =======================
 #     JSON HELPERS
@@ -108,11 +149,6 @@ def _gerund(base: str) -> str:
     return w + "ing"
 
 def _autofill_continuous(v: Dict) -> Dict:
-    """
-    Normaliza el campo 'continuo' para que siempre tenga el formato:
-    'was / were <gerundio>'. Si el JSON trae solo el gerundio (p.ej. 'going'),
-    lo completa a 'was / were going'.
-    """
     base = v.get("presente") or v.get("base") or ""
     v.setdefault("traduccion", "")
     v.setdefault("traduccion_pasado", v.get("traduccion", ""))
@@ -122,11 +158,6 @@ def _autofill_continuous(v: Dict) -> Dict:
     if not v["continuo"]:
         g = _gerund(base)
         v["continuo"] = f"was / were {g}" if g else ""
-    else:
-        cont_raw = (v["continuo"] or "").strip()
-        cont_lc  = cont_raw.lower()
-        if (not re.search(r"\bwas\b|\bwere\b", cont_lc)) and re.search(r"\b\w+ing\b", cont_lc):
-            v["continuo"] = f"was / were {cont_raw}"
 
     if not v["traduccion_continuo"]:
         v["traduccion_continuo"] = v.get("traduccion_pasado") or v.get("traduccion") or ""
@@ -154,6 +185,7 @@ def _normalize_verb_input(v: Dict) -> Dict:
     return out
 
 def _normalize_verb_strict_for_add(data: Dict) -> Dict:
+    # Requisitos mínimos
     req_min = ["presente", "pasado", "traduccion", "categoria"]
     if not all(k in data and str(data[k]).strip() for k in req_min):
         raise ValueError("Faltan campos obligatorios (presente, pasado, traducción y categoría).")
@@ -162,6 +194,7 @@ def _normalize_verb_strict_for_add(data: Dict) -> Dict:
     return _normalize_verb_input(data)
 
 def _migrate_if_missing():
+    # Si no existe en /var/data, seed desde repo (solo una vez)
     if not os.path.exists(VERBOS_FILE):
         seed = _read_json("verbos.json", [])
         seed_norm = [_normalize_verb_input(v) for v in seed]
@@ -195,6 +228,54 @@ def save_stats(stats: List[Dict]):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+# ============
+#  PORTADA (NUEVO)
+# ============
+@app.route("/portada", methods=["GET", "HEAD"])
+def portada():
+    path = _portada_find_path()
+    if not path:
+        return ("", 404)
+    # mimetype por extensión
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".png": mt = "image/png"
+    elif ext in (".jpg", ".jpeg"): mt = "image/jpeg"
+    elif ext == ".webp": mt = "image/webp"
+    else: mt = "application/octet-stream"
+    return send_file(path, mimetype=mt)
+
+@app.route("/portada_exists", methods=["GET"])
+def portada_exists():
+    return jsonify({"exists": bool(_portada_find_path())})
+
+@app.route("/upload_portada", methods=["POST"])
+def upload_portada():
+    if "file" not in request.files:
+        return jsonify({"ok": False, "msg": "No se recibió archivo"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"ok": False, "msg": "Archivo sin nombre"}), 400
+    try:
+        out_path = _portada_save(f)
+        return jsonify({"ok": True, "msg": "📷 Portada actualizada", "path": os.path.basename(out_path)})
+    except ValueError as e:
+        return jsonify({"ok": False, "msg": str(e)}), 400
+    except Exception:
+        return jsonify({"ok": False, "msg": "No se pudo guardar la imagen"}), 500
+
+@app.route("/delete_portada", methods=["DELETE"])
+def delete_portada():
+    removed = False
+    for e in PORTADA_EXTS:
+        p = PORTADA_BASE + e
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+                removed = True
+            except Exception:
+                pass
+    return jsonify({"ok": True, "removed": removed})
 
 # ============
 #  VERBOS API
