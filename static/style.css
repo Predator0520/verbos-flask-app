@@ -229,3 +229,13 @@ input[type="text"], select{
 .dark .kpi, .dark .panel-sub{ background:#0f172a; border-color:#334155 }
 .dark .portada-box{ background:#0b1224; border-color:#334155 }
 .dark .portada-empty{ color:#9ca3af }
+/* Ajuste de tamaño para la imagen de portada */
+#portada-img {
+    max-width: 100%;
+    height: auto;
+    max-height: 400px; /* altura máxima visible */
+    object-fit: contain; /* evita deformar */
+    display: block;
+    margin: 0 auto; /* centra horizontalmente */
+    border-radius: 10px; /* bordes redondeados opcionales */
+}
